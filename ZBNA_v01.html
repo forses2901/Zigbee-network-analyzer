@@ -1,0 +1,2871 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZigBee Анализатор (LQI + Маршруты)</title>
+    <script type="text/javascript" src="https://gc.kes.v2.scr.kaspersky-labs.com/7EA5E9BB-55E1-4C31-9C21-4943DDFED2E4/main.js?attr=snlnhP268X6uL1zM24Ltr5TPztzeo-uOaR5cYnqUo3ZwK-i8ZnACLZ0lvu6hbqZMCSo4Lzy1spFTd8J-K9Ian_aUedbIxHVX5V8pcR7dTStxvWuM9_mWPQMs5Fv7EoMFGkDnU-P_Tl550gj6SSl8BgGhiZZAuNbXcJbp6cqtYP9thii2MhqECSIhajThxf1lplConQyW2pUtffC9o60_sg" charset="UTF-8"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        /* ===== ОСНОВНЫЕ СТИЛИ ===== */
+        :root {
+            --bg-body: #f5f7fa;
+            --bg-container: white;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --bg-area: #f1f5f9;
+            --bg-controls: #f8fafc;
+            --bg-table-header: #1e293b;
+            --bg-table-stripe: #f8fafc;
+            --shadow: 0 4px 20px rgba(0,0,0,0.08);
+            --hover-bg: #f1f5f9;
+            --tab-bg: #e2e8f0;
+            --tab-active: #3b82f6;
+            --placeholder-color: #94a3b8;
+        }
+        body.dark {
+            --bg-body: #0f172a;
+            --bg-container: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --bg-area: #2d3748;
+            --bg-controls: #2d3748;
+            --bg-table-header: #0f172a;
+            --bg-table-stripe: #1e293b;
+            --shadow: 0 4px 20px rgba(0,0,0,0.5);
+            --hover-bg: #334155;
+            --tab-bg: #334155;
+            --tab-active: #3b82f6;
+            color-scheme: dark;
+            --placeholder-color: #64748b;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 20px; background: var(--bg-body); color: var(--text-primary); transition: background 0.3s, color 0.3s; }
+        .container { max-width: 1600px; margin: 0 auto; background: var(--bg-container); padding: 25px; border-radius: 16px; box-shadow: var(--shadow); transition: background 0.3s; }
+        h1, h2, h3, h4 { color: var(--text-primary); }
+        .file-area, .history-area, .stat-box, .table-wrap, .compare-col, .tab-content {
+            background: var(--bg-area);
+            border-color: var(--border-color);
+            transition: background 0.3s, border-color 0.3s;
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+        }
+        .history-area, .controls { background: var(--bg-controls); }
+        .stat-box {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px 20px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 600px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+        .table-wrap { overflow-x: auto; margin: 15px 0; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-container); padding: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg-table-header); color: white; padding: 8px 10px; text-align: left; position: sticky; top: 0; z-index: 2; }
+        td { padding: 6px 10px; border-bottom: 1px solid var(--border-color); }
+        tr:nth-child(even) { background: var(--bg-table-stripe); }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 6px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:hover { background: #475569; }
+        .btn-success { background: #22c55e; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-purple { background: #8b5cf6; }
+        .btn-purple:hover { background: #7c3aed; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+        .btn-outline:hover { background: var(--hover-bg); }
+        .file-area input[type="file"] { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-container); color: var(--text-primary); }
+        .controls label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+        .controls input[type="range"] { width: 100px; }
+        .controls input[type="checkbox"] { width: 18px; height: 18px; }
+        .chart-container { margin: 20px 0; height: 400px; }
+        .tab-buttons { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+        .tab-buttons button { padding: 6px 16px; border: 1px solid var(--border-color); background: var(--bg-container); color: var(--text-primary); border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .tab-buttons button.active { background: var(--tab-active); color: white; border-color: var(--tab-active); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .footer { margin-top: 20px; text-align: center; font-size: 14px; color: var(--text-secondary); }
+        .tables-header { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 10px; }
+        .tables-wrapper { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; max-height: 2000px; opacity: 1; }
+        .tables-wrapper.collapsed { max-height: 0; opacity: 0; margin: 0; }
+        .toggle-btn { background: none; border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 14px; cursor: pointer; font-weight: 500; font-size: 14px; color: var(--text-primary); }
+        .toggle-btn:hover { background: var(--hover-bg); }
+        .toggle-btn.collapsed::before { content: "▶ "; }
+        .toggle-btn:not(.collapsed)::before { content: "▼ "; }
+        .history-area { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; padding: 10px 15px; }
+        .history-list { display: flex; flex-wrap: wrap; gap: 10px; flex: 1; }
+        .history-item { background: var(--bg-container); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 12px; font-size: 13px; cursor: pointer; transition: 0.15s; display: flex; align-items: center; gap: 8px; color: var(--text-primary); }
+        .history-item:hover { background: var(--hover-bg); }
+        .history-item .filename { font-weight: 500; }
+        .history-item .meta { color: var(--text-secondary); font-size: 12px; }
+        .history-item input[type="checkbox"] { margin: 0; width: 16px; height: 16px; cursor: pointer; }
+        .history-clear { background: none; border: none; color: #ef4444; cursor: pointer; font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+        .history-clear:hover { background: #fee2e2; }
+        .history-empty { color: var(--text-secondary); font-style: italic; font-size: 14px; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 999; opacity: 0; transition: opacity 0.3s; }
+        .toast.show { opacity: 1; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1000; display: none; justify-content: center; align-items: center; padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--bg-container); color: var(--text-primary); border-radius: 16px; max-width: 1400px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 25px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; }
+        .modal-close { position: sticky; top: 0; float: right; background: none; border: none; font-size: 28px; cursor: pointer; color: var(--text-secondary); padding: 0 10px; }
+        .modal-close:hover { color: var(--text-primary); }
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
+        .compare-col { border: 1px solid var(--border-color); border-radius: 10px; padding: 15px; background: var(--bg-area); }
+        .compare-col h4 { margin-top: 0; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
+        .compare-stats { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+        .compare-charts { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .compare-charts .chart-container { height: 300px; }
+        .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 15px; }
+        .pagination-controls { display: flex; align-items: center; gap: 15px; margin: 10px 0; flex-wrap: wrap; }
+        .pagination-controls button { background: var(--bg-container); border: 1px solid var(--border-color); padding: 4px 12px; border-radius: 4px; cursor: pointer; color: var(--text-primary); }
+        .pagination-controls button:hover { background: var(--hover-bg); }
+        .filter-input { padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-container); color: var(--text-primary); width: 250px; }
+        .theme-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .theme-toggle input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        #loadingIndicator { display: none; text-align: center; padding: 20px; font-size: 18px; color: var(--text-secondary); }
+        .graph-legend { display: flex; flex-wrap: wrap; gap: 20px; background: var(--bg-area); padding: 8px 15px; border-radius: 8px; margin: 10px 0; border: 1px solid var(--border-color); font-size: 13px; }
+        .graph-legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border-color); }
+        .graph-time-controls { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin: 10px 0; }
+        .graph-time-controls label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .graph-time-controls input[type="range"] { width: 120px; }
+        .graph-time-controls .time-label { min-width: 80px; font-family: monospace; }
+        #graphContainer { height: 600px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-container); position: relative; }
+        #lqiNetwork { height: 480px; border-radius: 10px; background: #090d13; border: 1px solid var(--border-color); }
+
+        .graph-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .graph-wrapper .fullscreen-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.2s;
+            opacity: 0.7;
+            line-height: 1;
+        }
+        .graph-wrapper .fullscreen-btn:hover {
+            opacity: 1;
+            background: rgba(0,0,0,0.8);
+        }
+        .graph-wrapper .fullscreen-btn:focus {
+            outline: none;
+        }
+        .graph-wrapper.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background: var(--bg-container);
+            padding: 20px;
+        }
+        .graph-wrapper.fullscreen #lqiNetwork,
+        .graph-wrapper.fullscreen #graphContainer {
+            height: calc(100vh - 60px);
+        }
+
+        .lqi-params { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: var(--bg-controls); padding: 8px 18px; border-radius: 40px; border: 1px solid var(--border-color); margin-bottom: 15px; }
+        .lqi-params .param { display: flex; flex-direction: column; gap: 4px; }
+        .lqi-params .param label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: var(--text-secondary); }
+        .lqi-params input, .lqi-params select { border-radius: 40px; border: 1px solid var(--border-color); padding: 6px 12px; font-size: 0.85rem; background: var(--bg-container); color: var(--text-primary); }
+        .route-box { background: var(--bg-area); border-radius: 18px; padding: 14px 18px; border: 1px solid var(--border-color); margin-top: 15px; }
+        .route-box h4 { margin: 0 0 12px 0; color: #7dd3fc; }
+        .route-selectors { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; }
+        .route-selectors .param { flex: 1; min-width: 160px; }
+        .route-result { background: var(--bg-container); border-radius: 16px; padding: 12px; font-size: 0.85rem; margin-top: 12px; font-family: monospace; border: 1px solid var(--border-color); }
+        .route-path { color: #7ae9c3; font-weight: bold; }
+        .lqi-legend {
+            background: var(--bg-area);
+            border-radius: 16px;
+            margin: 12px 0;
+            padding: 12px 16px;
+            border: 1px solid var(--border-color);
+            font-size: 0.8rem;
+        }
+        .gradient-bar { width: 180px; height: 20px; background: linear-gradient(90deg, #ff3a3a, #ffdd44, #2cd47c); border-radius: 12px; border: 1px solid var(--border-color); }
+        .thickness-demo { display: flex; align-items: center; gap: 20px; margin: 8px 0; }
+        .line-thin { width: 50px; height: 3px; background: #9ab3cf; }
+        .line-thick { width: 50px; height: 8px; background: #9ab3cf; }
+
+        .lqi-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .lqi-left {
+            flex: 0 0 30%;
+            min-width: 250px;
+        }
+        .lqi-right {
+            flex: 1;
+            min-width: 0;
+        }
+        .lqi-right .lqi-legend {
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+        .lqi-right .route-box {
+            margin-top: 12px;
+        }
+        @media (max-width: 800px) {
+            .lqi-row { flex-direction: column; }
+            .lqi-left, .lqi-right { flex: 1 1 auto; width: 100%; }
+            .compare-grid { grid-template-columns: 1fr; }
+            .compare-charts { grid-template-columns: 1fr; }
+            .theme-toggle { margin-left: 0; }
+            .filter-input { width: 100%; }
+            .lqi-params { flex-direction: column; align-items: stretch; }
+        }
+
+        .placeholder {
+            display: none !important;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 250px;
+            background: var(--bg-area);
+            border: 2px dashed var(--border-color);
+            border-radius: 16px;
+            padding: 40px 20px;
+            color: var(--placeholder-color);
+            font-size: 1.4rem;
+            font-weight: 500;
+            text-align: center;
+        }
+        .placeholder .icon { font-size: 4rem; margin-bottom: 16px; opacity: 0.6; }
+        .no-data .placeholder { display: flex !important; }
+        .no-data .content-wrapper { display: none !important; }
+
+        .stats-table-wrap { margin-top: 15px; }
+        .stats-table-wrap .table-wrap { max-height: 400px; overflow-y: auto; }
+        .stats-table-wrap .toggle-table-btn {
+            background: var(--bg-controls);
+            border: 1px solid var(--border-color);
+            padding: 4px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+        .stats-table-wrap .toggle-table-btn:hover { background: var(--hover-bg); }
+        .stats-table-wrap .table-wrap.hidden { display: none; }
+        .stats-table-filter { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+        .stats-table-filter input { flex: 1; padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-container); color: var(--text-primary); }
+        .addr-list { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+        .addr-list span { background: var(--bg-controls); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📡 ZigBee Анализатор (LQI + Маршруты)</h1>
+
+    <!-- История и загрузка -->
+    <div class="history-area" id="historyArea">
+        <span class="history-label">📂 История:</span>
+        <div class="history-list" id="historyList"></div>
+        <button class="history-clear" id="clearHistoryBtn">✕ Очистить</button>
+        <button class="btn btn-success" id="compareBtn" style="display:none;">Сравнить выбранные</button>
+        <div class="theme-toggle">
+            <label>🌙 Тёмная тема <input type="checkbox" id="darkThemeToggle"></label>
+        </div>
+    </div>
+
+    <div class="file-area">
+        <input type="file" id="fileInput" accept=".txt,.log,.dat,.csv" multiple>
+        <button class="btn" id="analyzeBtn">🔍 Анализировать</button>
+        <span id="fileStatus" style="color: var(--text-secondary);">Файл не выбран</span>
+    </div>
+
+    <div id="loadingIndicator">⏳ Обработка файлов...</div>
+
+<div class="export-area" style="display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; padding: 10px 15px; background: var(--bg-controls); border-radius: 10px; border: 1px solid var(--border-color); align-items: center;">
+    <span style="font-weight: 600; margin-right: 10px;">📤 Экспорт:</span>
+    <button class="btn btn-secondary" id="exportReportBtn">🖨️ Отчёт(HTML)</button>
+    <button class="btn btn-secondary" id="exportCompareBtn" style="display:none;">🔁 Сравнение (HTML)</button>
+</div>
+    <!-- Вкладки -->
+    <div class="tab-buttons">
+        <button class="tab-btn active" data-tab="lqi">📊 LQI‑анализ</button>
+        <button class="tab-btn" data-tab="routes">🗺️ Маршруты</button>
+        <button class="tab-btn" data-tab="graph">🌐 Граф переходов</button>
+        <button class="tab-btn" data-tab="stats">📈 Статистика</button>
+        <button class="tab-btn" id="timelineBtn">📈 Динамика</button>
+    </div>
+
+    <!-- ===== ВКЛАДКА LQI ===== -->
+    <div id="tab-lqi" class="tab-content no-data">
+        <div class="placeholder" id="lqiPlaceholder"><div class="icon">📂</div><div>Загрузите файл для анализа</div></div>
+        <div class="content-wrapper" id="lqiContent">
+            <div class="lqi-params">
+                <div class="param"><label>📊 Порог LQI</label><input type="number" id="lqiThreshold" value="150" min="0" max="255" step="1" style="width:85px"></div>
+                <div class="param"><label>🏆 TOP связей</label><input type="number" id="lqiTopN" value="10" min="1" max="50" step="1" style="width:75px"></div>
+                <div class="param"><label>🔁 Симметрия</label><input type="checkbox" id="lqiSymmetry" style="width:20px;height:20px;"></div>
+                <div class="param"><label>📢 Подробно >20</label><input type="checkbox" id="lqiVerbose"></div>
+                <button class="btn" id="lqiApplyBtn">🔄 Применить</button>
+                <button class="btn btn-secondary" id="lqiResetRouteBtn">🔄 Сброс маршрута</button>
+                <button class="btn btn-secondary" id="lqiPhysicsToggle">🔘 Отключить физику</button>
+            </div>
+            <div class="lqi-row">
+                <div class="lqi-left">
+                    <div class="stat-box" id="lqiReport" style="display:none;"></div>
+                </div>
+                <div class="lqi-right">
+                    <div class="graph-wrapper" id="lqiGraphWrapper">
+                        <div id="lqiNetwork"></div>
+                        <button class="fullscreen-btn" id="lqiFullscreenBtn" title="На весь экран">⛶</button>
+                    </div>
+                    <div id="lqiGraphStatus" style="padding:6px 0; font-size:12px; color:var(--text-secondary);"></div>
+                    <div class="lqi-legend">
+                        <div><strong>📖 Легенда LQI</strong></div>
+                        <div><span>🎨 Цвет ребра:</span> <div class="gradient-bar"></div> <span id="lqiRangeLabel">🔴 низкий LQI → 🟢 высокий LQI</span></div>
+                        <div><span>📏 Толщина:</span> <div class="thickness-demo"><div class="line-thin"></div> — мало пакетов <div class="line-thick"></div> — много пакетов</div></div>
+                    </div>
+                    <div class="route-box">
+                        <h4>🗺️ Построить маршрут (мин. переходов → макс. сумма LQI)</h4>
+                        <div class="route-selectors">
+                            <div class="param"><label>🚀 Стартовый узел</label><select id="lqiRouteStart" disabled><option value="">-- сначала загрузите данные --</option></select></div>
+                            <div class="param"><label>🎯 Конечный узел</label><select id="lqiRouteEnd" disabled><option value="">-- сначала загрузите данные --</option></select></div>
+                            <button class="btn" id="lqiFindRouteBtn">🔍 Найти маршрут</button>
+                        </div>
+                        <div id="lqiRouteResult" class="route-result">📌 Выберите узлы и нажмите «Найти маршрут».</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ВКЛАДКА МАРШРУТОВ ===== -->
+    <div id="tab-routes" class="tab-content no-data">
+        <div class="placeholder" id="routesPlaceholder"><div class="icon">📂</div><div>Загрузите файл для анализа</div></div>
+        <div class="content-wrapper" id="routesContent">
+            <div id="routesStats" class="stat-box" style="display:none;"></div>
+            <div class="controls" id="chartControls" style="display:none;">
+                <label>Ширина столбцов: <input type="range" id="barWidthSlider" min="0.1" max="1" step="0.05" value="0.9"> <span id="barWidthValue">0.9</span></label>
+                <label><input type="checkbox" id="sortDescCheck" checked> По убыванию доли</label>
+                <label><input type="checkbox" id="useRankCheck"> Ранги вместо ID</label>
+                <button class="btn btn-secondary" id="updateChartBtn">Обновить график</button>
+            </div>
+            <div id="chartArea" style="display:none;">
+                <h3>Распределение популярности уникальных маршрутов</h3>
+                <div class="chart-container"><canvas id="popularityChart"></canvas></div>
+            </div>
+            <div id="tablesContainer" style="display:none;">
+                <div class="tables-header">
+                    <h3>📊 Таблицы маршрутов</h3>
+                    <button class="toggle-btn" id="toggleTablesBtn">Свернуть</button>
+                </div>
+                <div class="tables-wrapper" id="tablesWrapper">
+                    <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin:10px 0;">
+                        <input type="text" id="tableFilter" class="filter-input" placeholder="Фильтр по EUI, ShortAddress или RouteID">
+                        <div class="pagination-controls">
+                            <button id="prevPageBtn">←</button>
+                            <span id="pageInfo">Страница 1</span>
+                            <button id="nextPageBtn">→</button>
+                        </div>
+                    </div>
+                    <div class="tab-buttons" style="margin-bottom:10px;">
+                        <button class="active" data-tab="allRoutes">Все маршруты</button>
+                        <button data-tab="uniqueRoutes">Уникальные маршруты</button>
+                    </div>
+                    <div id="tab-allRoutes" class="tab-content active">
+                        <div id="allRoutesTable" class="table-wrap"></div>
+                    </div>
+                    <div id="tab-uniqueRoutes" class="tab-content">
+                        <div id="uniqueRoutesTable" class="table-wrap"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ВКЛАДКА ГРАФ ПЕРЕХОДОВ ===== -->
+    <div id="tab-graph" class="tab-content no-data">
+        <div class="placeholder" id="graphPlaceholder"><div class="icon">📂</div><div>Загрузите файл для анализа</div></div>
+        <div class="content-wrapper" id="graphContent">
+            <div class="graph-legend">
+                <span class="graph-legend-item"><span class="legend-color" style="background:#3b82f6;"></span> Обычный узел (EUI)</span>
+                <span class="graph-legend-item"><span class="legend-color" style="background:#ffcc00;"></span> Координатор (0x0000)</span>
+                <span class="graph-legend-item"><span style="font-weight:bold;">Размер узла</span> → пропорционален числу появлений</span>
+                <span class="graph-legend-item"><span style="font-weight:bold;">Толщина ребра</span> → частота перехода</span>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:15px; align-items:center; margin:10px 0;">
+                <label>Мин. вес ребра: <input type="range" id="minWeightSlider" min="0" max="50" value="0" step="1"> <span id="minWeightValue">0</span></label>
+                <label><input type="checkbox" id="physicsToggle" checked> Включить физику</label>
+                <button class="btn btn-secondary" id="graphUpdateBtn">Обновить</button>
+            </div>
+            <div class="graph-time-controls" id="timeControls">
+                <label>От: <input type="range" id="timeFromSlider" min="0" max="100" value="0" step="0.1"> <span class="time-label" id="timeFromLabel">0.0</span></label>
+                <label>До: <input type="range" id="timeToSlider" min="0" max="100" value="100" step="0.1"> <span class="time-label" id="timeToLabel">100.0</span></label>
+                <button class="btn btn-success" id="playBtn">▶ Воспроизвести</button>
+                <button class="btn btn-secondary" id="resetTimeBtn">Сбросить</button>
+                <span id="timeInfo" style="font-size:13px; color:var(--text-secondary);">Временной интервал</span>
+            </div>
+            <div class="graph-wrapper" id="graphGraphWrapper">
+                <div id="graphContainer"></div>
+                <button class="fullscreen-btn" id="graphFullscreenBtn" title="На весь экран">⛶</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ВКЛАДКА СТАТИСТИКА ===== -->
+    <div id="tab-stats" class="tab-content no-data">
+        <div class="placeholder" id="statsPlaceholder"><div class="icon">📂</div><div>Загрузите файл для анализа</div></div>
+        <div class="content-wrapper" id="statsContent">
+            <div id="statsReport" class="stat-box" style="display:none;"></div>
+            <div class="stats-table-wrap">
+                <button class="toggle-table-btn" id="toggleEuiTableBtn">▶ Показать таблицу соответствия EUI ↔ Short</button>
+                <div class="table-wrap hidden" id="euiTableWrapper">
+                    <div class="stats-table-filter">
+                        <input type="text" id="statsTableFilter" placeholder="Фильтр по EUI или короткому адресу...">
+                        <span id="statsFilterCount" style="font-size:13px; color:var(--text-secondary);"></span>
+                    </div>
+                    <table id="euiTable">
+                        <thead><tr><th>EUI</th><th>Короткие адреса</th></tr></thead>
+                        <tbody id="euiTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">Данные парсятся локально в браузере. Никакие данные не отправляются на сервер.</div>
+</div>
+
+<!-- Модальные окна -->
+<div class="modal-overlay" id="compareModal">
+    <div class="modal">
+        <button class="modal-close" id="modalCloseBtn">&times;</button>
+        <h2>🔍 Сравнение двух загрузок</h2>
+        <div id="compareContent">
+            <div class="compare-grid" id="compareGrid"></div>
+            <div id="compareUniqueBlock" style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px;"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="modalCloseActionBtn">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="timelineModal">
+    <div class="modal">
+        <button class="modal-close" id="timelineModalCloseBtn">&times;</button>
+        <h2>📈 Динамика маршрутов во времени</h2>
+        <div class="timeline-controls" style="display:flex; gap:20px; align-items:center; margin:15px 0; flex-wrap:wrap;">
+            <label>Интервал агрегации: <select id="timelineInterval"><option value="1">1 сек</option><option value="5" selected>5 сек</option><option value="10">10 сек</option><option value="30">30 сек</option><option value="60">1 мин</option><option value="300">5 мин</option><option value="3600">1 ч</option></select></label>
+            <label><input type="checkbox" id="timelineUniqueOnly"> Только уникальные</label>
+            <label><input type="checkbox" id="timelineShowOther" checked> Другие пакеты</label>
+            <label><input type="checkbox" id="timelineShowTotal"> Общее количество</label>
+            <button class="btn btn-secondary" id="timelineUpdateBtn">Обновить</button>
+        </div>
+        <div class="chart-container" style="height:500px;"><canvas id="timelineChart"></canvas></div>
+        <div class="modal-actions"><button class="btn btn-secondary" id="timelineCloseBtn">Закрыть</button></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ======================================================================
+    // 0. ОБЩИЕ ФУНКЦИИ
+    // ======================================================================
+    function debounce(fn, ms) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
+
+function destroyLqiNetwork() {
+    if (lqiNetwork) {
+        lqiNetwork.off('*');
+        lqiNetwork.destroy();
+        lqiNetwork = null;
+    }
+}
+
+function destroyGraphNetwork() {
+    if (graphNetwork) {
+        graphNetwork.off('*');
+        graphNetwork.destroy();
+        graphNetwork = null;
+    }
+}
+
+// Кэши для LQI и маршрутов
+let cachedAggregatedEdges = null;
+let cachedRouteStats = { uniquePairs: null, routeCounter: null, version: 0 };
+let lqiDataVersion = 0;
+	
+	
+	function formatEUI(euiBytes) {
+        return euiBytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    }
+    function formatShort(short) {
+        return '0x' + short.toString(16).padStart(4, '0').toUpperCase();
+    }
+    function formatAddress(addr) {
+        const str = String(addr);
+        if (str.startsWith('0x')) return str;
+        return '0x' + addr.toString(16).padStart(4, '0').toUpperCase();;
+    }
+    function formatRouteString(pairs) {
+        const parts = pairs.map(p => `${formatEUI(p.eui)}(${formatShort(p.short)})`);
+        parts.push('0x0000');
+        return parts.join(' → ');
+    }
+
+    function parseTimestamp(str) {
+        str = str.trim();
+        let date = new Date(str);
+        if (!isNaN(date)) return date.getTime() / 1000;
+        let match = str.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?\s+(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (match) {
+            const h = parseInt(match[1],10), m = parseInt(match[2],10), s = parseInt(match[3],10);
+            const ms = match[4]?parseInt(match[4],10):0;
+            const day=parseInt(match[5],10), month=parseInt(match[6],10)-1, year=parseInt(match[7],10);
+            const d = new Date(year, month, day, h, m, s, ms);
+            if (!isNaN(d)) return d.getTime()/1000;
+        }
+        let timeMatch = str.match(/^(\d{2}):(\d{2}):(\d{2})(?:\.(\d{3}))?$/);
+        if (timeMatch) {
+            const h=parseInt(timeMatch[1],10), m=parseInt(timeMatch[2],10), s=parseInt(timeMatch[3],10);
+            const ms=timeMatch[4]?parseInt(timeMatch[4],10):0;
+            const now = new Date();
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, s, ms);
+            return d.getTime()/1000;
+        }
+        return null;
+    }
+    function formatTimeForAxis(sec, refSec) {
+        const date = new Date(sec*1000);
+        const refDate = new Date(refSec*1000);
+        if (date.getFullYear()===refDate.getFullYear() && date.getMonth()===refDate.getMonth() && date.getDate()===refDate.getDate())
+            return date.toTimeString().slice(0,8);
+        else
+            return date.toLocaleString('ru', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+    }
+    function formatFullDateTime(sec) {
+        return new Date(sec*1000).toLocaleString('ru', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    }
+
+    // ---- IndexedDB для истории ----
+    const DB_NAME = 'ZigbeeRouteHistory';
+    const STORE_NAME = 'files';
+    const MAX_SESSION_SIZE = 5*1024*1024;
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+            };
+            req.onsuccess = (e) => resolve(e.target.result);
+            req.onerror = (e) => reject(e.target.error);
+        });
+    }
+    async function saveFileToDB(key, content) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put({ key, content });
+            await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = (e) => reject(e.target.error); });
+            return true;
+        } catch(e) { return false; }
+    }
+    async function getFileFromDB(key) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.get(key);
+            return new Promise((resolve, reject) => {
+                req.onsuccess = () => resolve(req.result ? req.result.content : null);
+                req.onerror = (e) => reject(e.target.error);
+            });
+        } catch(e) { return null; }
+    }
+    async function deleteFileFromDB(key) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.delete(key);
+            await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = (e) => reject(e.target.error); });
+            return true;
+        } catch(e) { return false; }
+    }
+    async function clearAllFilesFromDB() {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.clear();
+            await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = (e) => reject(e.target.error); });
+            return true;
+        } catch(e) { return false; }
+    }
+
+    const HISTORY_KEY = 'zigbee_route_history';
+    const MAX_HISTORY = 5;
+    function loadHistory() {
+        try { const data = localStorage.getItem(HISTORY_KEY); return data ? JSON.parse(data) : []; } catch { return []; }
+    }
+    function saveHistory(history) { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
+
+    async function addHistoryEntry(filename, content, totalPackets, lqiCount) {
+        let history = loadHistory();
+        history = history.filter(item => item.filename !== filename);
+        const entry = {
+            filename,
+            totalPackets: totalPackets || 0,
+            lqiCount: lqiCount || 0,
+            date: new Date().toLocaleString(),
+            timestamp: Date.now(),
+            storageKey: `file_${filename}_${Date.now()}`
+        };
+        const saved = await saveFileToDB(entry.storageKey, content);
+        if (!saved) {
+            if (content.length <= MAX_SESSION_SIZE) {
+                try { sessionStorage.setItem(entry.storageKey, content); } catch(e) { showToast(`Не удалось сохранить "${filename}" (слишком большой).`); entry.storageKey = null; }
+            } else {
+                showToast(`Файл "${filename}" слишком велик (${(content.length/1024/1024).toFixed(1)} МБ) – содержимое не сохранено.`);
+                entry.storageKey = null;
+            }
+        }
+        history.unshift(entry);
+        if (history.length > MAX_HISTORY) {
+            const removed = history.splice(MAX_HISTORY);
+            for (const old of removed) if (old.storageKey) { await deleteFileFromDB(old.storageKey); sessionStorage.removeItem(old.storageKey); }
+        }
+        saveHistory(history);
+        renderHistory();
+    }
+
+    async function clearHistory() {
+        const history = loadHistory();
+        for (const item of history) if (item.storageKey) { await deleteFileFromDB(item.storageKey); sessionStorage.removeItem(item.storageKey); }
+        saveHistory([]);
+        renderHistory();
+        showToast('История очищена.');
+    }
+
+    async function getFileContent(storageKey) {
+        let content = await getFileFromDB(storageKey);
+        if (content !== null) return content;
+        content = sessionStorage.getItem(storageKey);
+        return content;
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        const history = loadHistory();
+        if (history.length === 0) {
+            list.innerHTML = '<span class="history-empty">Нет записей</span>';
+            document.getElementById('compareBtn').style.display = 'none';
+            return;
+        }
+        list.innerHTML = history.map((item, index) => {
+            const hasData = !!item.storageKey;
+            const info = `маршрутов: ${item.totalPackets}, LQI: ${item.lqiCount}`;
+            return `<div class="history-item" data-index="${index}" data-filename="${item.filename}" data-storagekey="${item.storageKey||''}" data-hasdata="${hasData}">
+                <input type="checkbox" class="history-checkbox" data-index="${index}" ${!hasData?'disabled':''}>
+                <span class="filename">${item.filename}</span>
+                <span class="meta">(${info}, ${item.date})</span>
+                ${hasData?'':'<span style="color:#ef4444;font-size:12px;">(данные недоступны)</span>'}
+            </div>`;
+        }).join('');
+
+        document.querySelectorAll('.history-item').forEach(el => {
+            el.addEventListener('click', async function(e) {
+                if (e.target.tagName === 'INPUT') return;
+                const storageKey = this.dataset.storagekey;
+                const hasData = this.dataset.hasdata === 'true';
+                if (!hasData || !storageKey) { showToast(`Данные для "${this.dataset.filename}" не сохранены. Загрузите файл заново.`); return; }
+                const content = await getFileContent(storageKey);
+                if (!content) { showToast(`Данные утеряны. Загрузите файл заново.`); return; }
+                processText(content, false);
+                document.getElementById('fileStatus').textContent = `📂 Восстановлено: "${this.dataset.filename}" (LQI: ${lqiData.length}, маршрутов: ${routeData.length})`;
+                displayResults(this.dataset.filename);
+                showToast(`Восстановлены данные из "${this.dataset.filename}"`);
+            });
+        });
+
+        document.querySelectorAll('.history-checkbox').forEach(cb => cb.addEventListener('change', updateCompareButton));
+        updateCompareButton();
+    }
+
+    function updateCompareButton() {
+        const checked = document.querySelectorAll('.history-checkbox:checked');
+        document.getElementById('compareBtn').style.display = (checked.length === 2) ? 'inline-block' : 'none';
+    }
+
+    // ======================================================================
+    // 1. ПАРСЕРЫ (ТОЛЬКО AA 01 38 и AA 01 AA)
+    // ======================================================================
+    let lqiData = [];
+    let routeData = [];
+    let timelineData = [];
+    let otherTimelineData = [];
+    let totalPackets = 0;
+    let routeCounter = null;
+    let uniquePairs = [];
+
+    function findMarker(bytes, marker) {
+        for (let i = 0; i <= bytes.length - marker.length; i++) {
+            let found = true;
+            for (let j = 0; j < marker.length; j++) {
+                if (bytes[i+j] !== marker[j]) { found = false; break; }
+            }
+            if (found) return i;
+        }
+        return -1;
+    }
+
+    function extractHexBytes(line) {
+        const matches = line.match(/\b([0-9A-Fa-f]{2})\b/g);
+        if (!matches) return [];
+        return matches.map(x => parseInt(x, 16));
+    }
+
+    function processText(text, append = false) {
+        if (!append) {
+            lqiData = [];
+            routeData = [];
+            timelineData = [];
+            otherTimelineData = [];
+            totalPackets = 0;
+            routeCounter = null;
+            uniquePairs = [];
+        }
+
+        let routeId = routeData.length > 0 ? Math.max(...routeData.map(r => r.routeId)) + 1 : 1;
+        const lines = text.split(/\r?\n/);
+        let lqiAdded = 0, routesAdded = 0;
+
+        for (const line of lines) {
+            let timeAbs = null;
+            let match = line.match(/(\d{2}:\d{2}:\d{2}(?:\.\d{3})?)(?:\s+(\d{2}\/\d{2}\/\d{4}))?/);
+            if (match) {
+                let timeStr = match[1];
+                let dateStr = match[2] || '';
+                let fullStr = timeStr + (dateStr ? ' ' + dateStr : '');
+                timeAbs = parseTimestamp(fullStr);
+            }
+            if (timeAbs === null) {
+                let isoMatch = line.match(/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d{3})?)/);
+                if (isoMatch) timeAbs = parseTimestamp(isoMatch[1]);
+            }
+
+            const allBytes = extractHexBytes(line);
+            if (allBytes.length === 0) continue;
+
+            // ---- Пакет AA 01 38 (LQI) ----
+            let pos38 = findMarker(allBytes, [0xAA, 0x01, 0x38]);
+            if (pos38 !== -1) {
+                let idx38 = pos38 + 4; // пропускаем маркер (3) + байт длины (1)
+                if (idx38 + 24 <= allBytes.length) {
+                    let shortNeighbor = allBytes[idx38+16] + (allBytes[idx38+17] << 8);
+                    let lqi = allBytes[idx38+21];
+                    let shortNode = allBytes[idx38+22] + (allBytes[idx38+23] << 8);
+                    if (shortNode >= 0 && shortNode <= 0xFFFF && shortNeighbor >= 0 && shortNeighbor <= 0xFFFF && lqi >= 0 && lqi <= 255) {
+                        lqiData.push({
+                            src: formatAddress(shortNode),
+                            dst: formatAddress(shortNeighbor),
+                            lqi: lqi
+                        });
+                        lqiAdded++;
+                    } else {
+                        console.warn('Некорректный адрес в LQI-пакете:', { shortNode, shortNeighbor, lqi, line: line.trim() });
+                    }
+                }
+            }
+
+            // ---- Пакет AA 01 AA (маршруты) ----
+            let posAA = findMarker(allBytes, [0xAA, 0x01, 0xAA]);
+            if (posAA !== -1) {
+                let idx = posAA + 4;
+                const pairs = [];
+                while (idx + 10 <= allBytes.length) {
+                    let eui = allBytes.slice(idx, idx+8);
+                    let short = allBytes[idx+8] + (allBytes[idx+9] << 8);
+                    pairs.push({ eui, short });
+                    idx += 10;
+                }
+                if (pairs.length > 0) {
+                    const routeEntry = { routeId, pairs };
+                    routeData.push(routeEntry);
+                    routesAdded++;
+                    if (timeAbs !== null) {
+                        timelineData.push({ timeAbs, routeId, pairs });
+                    }
+                    routeId++;
+                }
+            }
+
+            if (timeAbs !== null && pos38 === -1 && posAA === -1 && allBytes.length > 0) {
+                otherTimelineData.push({ timeAbs });
+            }
+        }
+
+        return { lqiAdded, routesAdded };
+    }
+
+    function rebuildRouteStats() {
+        totalPackets = routeData.length;
+        if (totalPackets === 0) {
+            routeCounter = null;
+            uniquePairs = [];
+            return;
+        }
+        const counterMap = new Map();
+        for (const { pairs } of routeData) {
+            const key = JSON.stringify(pairs);
+            counterMap.set(key, (counterMap.get(key) || 0) + 1);
+        }
+        routeCounter = counterMap;
+        const uniqueSet = new Set();
+        for (const { pairs } of routeData) uniqueSet.add(JSON.stringify(pairs));
+        const uniqueKeys = Array.from(uniqueSet);
+        uniquePairs = uniqueKeys.map(k => JSON.parse(k));
+        uniquePairs.sort((a,b) => {
+            if (a.length !== b.length) return a.length - b.length;
+            const euiA = a[0]?.eui?.[0] || 0;
+            const euiB = b[0]?.eui?.[0] || 0;
+            return euiA - euiB;
+        });
+    }
+
+    // ======================================================================
+    // 2. LQI-МОДУЛЬ
+    // ======================================================================
+    let lqiNetwork = null;
+    let lqiPhysicsEnabled = true;
+    let lqiOriginalNodeColors = new Map();
+    let lqiOriginalEdgeStyles = new Map();
+    let lqiCurrentRoutePath = null;
+    let lqiAdjList = new Map();
+    let lqiCurrentNodeIds = [];
+    let lqiCurrentEdgesList = [];
+
+    function buildAggregatedEdges(data) {
+        const edgeMap = new Map();
+        for (let d of data) {
+            const key = `${d.src}|${d.dst}`;
+            const rec = edgeMap.get(key) || { sum: 0, cnt: 0 };
+            rec.sum += d.lqi;
+            rec.cnt++;
+            edgeMap.set(key, rec);
+        }
+        const edges = [];
+        for (let [key, val] of edgeMap.entries()) {
+            const [src, dst] = key.split('|');
+            edges.push({ from: src, to: dst, avgLqi: val.sum / val.cnt, count: val.cnt });
+        }
+        return edges;
+    }
+
+    function generateLqiReport(edges, opts) {
+        const { topN, symmetry, verbose, adjThreshold, totalRawRecords } = opts;
+        if (!edges.length) return "<p>Нет рёбер для анализа LQI.</p>";
+
+        const lqiVals = edges.map(e => e.avgLqi);
+        const total = lqiVals.length;
+        const minLqi = Math.min(...lqiVals);
+        const maxLqi = Math.max(...lqiVals);
+        const meanLqi = (lqiVals.reduce((a,b)=>a+b,0)/total).toFixed(1);
+        const sortedLqi = [...lqiVals].sort((a,b)=>a-b);
+        const median = sortedLqi[Math.floor(total/2)];
+        let stdText = "";
+        if (total >= 2) {
+            const avg = lqiVals.reduce((a,b)=>a+b,0)/total;
+            const variance = lqiVals.reduce((sum, v) => sum + (v-avg)**2, 0)/(total-1);
+            stdText = `<br>Стандартное отклонение: ${Math.sqrt(variance).toFixed(1)}`;
+        }
+
+        const categories = [
+            { name: "Очень плохой (0-49)", low:0, high:49 },
+            { name: "Плохой (50-99)", low:50, high:99 },
+            { name: "Средний (100-149)", low:100, high:149 },
+            { name: "Хороший (150-199)", low:150, high:199 },
+            { name: "Отличный (200-254)", low:200, high:254 },
+            { name: "Идеальный (255)", low:255, high:255 }
+        ];
+        let distHtml = `<h3>📊 Распределение качества связей (по среднему LQI)</h3><pre>`;
+        for (let cat of categories) {
+            const count = lqiVals.filter(v => v >= cat.low && v <= cat.high).length;
+            const pct = (count/total)*100;
+            const bar = "#".repeat(Math.floor(pct/2));
+            distHtml += `${cat.name.padEnd(20)} : ${count.toString().padStart(4)} (${pct.toFixed(1)}%) ${bar}\n`;
+        }
+        distHtml += `</pre>`;
+
+        const srcMap = new Map();
+        for (let e of edges) {
+            if (!srcMap.has(e.from)) srcMap.set(e.from, { lqis: [], neighbors: new Set() });
+            const entry = srcMap.get(e.from);
+            entry.lqis.push(e.avgLqi);
+            entry.neighbors.add(e.to);
+        }
+        let nodeStatsHtml = `<h3>📡 Статистика по узлам (исходящие связи, средний LQI)</h3><table><tr><th>Узел</th><th>уникальных соседей</th><th>мин LQI</th><th>макс LQI</th><th>среднее</th></tr>`;
+        const sortedSrc = Array.from(srcMap.keys()).sort((a,b)=> srcMap.get(b).neighbors.size - srcMap.get(a).neighbors.size);
+        for (let src of sortedSrc) {
+            const entry = srcMap.get(src);
+            const lqis = entry.lqis;
+            const minVal = Math.min(...lqis);
+            const maxVal = Math.max(...lqis);
+            const avgVal = (lqis.reduce((a,b)=>a+b,0)/lqis.length).toFixed(1);
+            const colorStyle = (src === '0x0000' || src === '0000') ? 'color:#f5b042;' : '';
+            nodeStatsHtml += `<tr style="${colorStyle}"><td>${src}</td><td>${entry.neighbors.size}</td><td>${minVal.toFixed(1)}</td><td>${maxVal.toFixed(1)}</td><td>${avgVal}</td></tr>`;
+        }
+        nodeStatsHtml += `</table>`;
+
+        const sortedByLqi = [...edges].sort((a,b)=>b.avgLqi - a.avgLqi);
+        let topHtml = `<h3>🏆 ТОП-${topN} лучших связей</h3><ul>`;
+        for (let i=0; i<Math.min(topN, sortedByLqi.length); i++) topHtml += `<li>${sortedByLqi[i].from} → ${sortedByLqi[i].to} : LQI = ${sortedByLqi[i].avgLqi.toFixed(1)} (пакетов: ${sortedByLqi[i].count})</li>`;
+        topHtml += `</ul><h3>⚠️ ТОП-${topN} худших связей</h3><ul>`;
+        const worst = [...sortedByLqi].reverse();
+        for (let i=0; i<Math.min(topN, worst.length); i++) topHtml += `<li>${worst[i].from} → ${worst[i].to} : LQI = ${worst[i].avgLqi.toFixed(1)} (пакетов: ${worst[i].count})</li>`;
+        topHtml += `</ul>`;
+
+        let symmetryHtml = "";
+        if (symmetry) {
+            const edgeMap = new Map();
+            for (let e of edges) edgeMap.set(`${e.from}|${e.to}`, e.avgLqi);
+            const symPairs = [];
+            const processed = new Set();
+            for (let [key, lqiAB] of edgeMap.entries()) {
+                const [src, dst] = key.split('|');
+                const revKey = `${dst}|${src}`;
+                if (edgeMap.has(revKey) && !processed.has(revKey) && !processed.has(key)) {
+                    symPairs.push({ src, dst, lqiAB, lqiBA: edgeMap.get(revKey) });
+                    processed.add(key); processed.add(revKey);
+                }
+            }
+            if (symPairs.length) {
+                const diffs = symPairs.map(p => Math.abs(p.lqiAB - p.lqiBA));
+                const avgDiff = (diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1);
+                symmetryHtml = `<h3>🔁 Анализ симметричности</h3><p>Уникальных пар: ${symPairs.length}<br>Средняя разница: ${avgDiff}<br>Макс. разница: ${Math.max(...diffs).toFixed(1)}</p>`;
+                if (verbose) {
+                    const large = symPairs.filter(p => Math.abs(p.lqiAB - p.lqiBA) > 20).sort((a,b)=> Math.abs(b.lqiAB - b.lqiBA) - Math.abs(a.lqiAB - a.lqiBA));
+                    if (large.length) {
+                        symmetryHtml += `<p><strong>Разница >20:</strong><br>` + large.map(p => `${p.src} ↔ ${p.dst} : ${p.lqiAB.toFixed(1)} vs ${p.lqiBA.toFixed(1)} (разница ${Math.abs(p.lqiAB - p.lqiBA).toFixed(1)})`).join('<br>') + `</p>`;
+                    }
+                }
+            } else symmetryHtml = `<h3>Симметрия</h3><p>Нет двусторонних пар.</p>`;
+        }
+
+        const adjMap = new Map();
+        for (let e of edges) {
+            if (e.avgLqi >= adjThreshold) {
+                if (!adjMap.has(e.from)) adjMap.set(e.from, []);
+                adjMap.get(e.from).push({ dst: e.to, avg: e.avgLqi.toFixed(1) });
+            }
+        }
+        let adjHtml = `<h3>🔗 Адъюнсентность (средний LQI ≥ ${adjThreshold})</h3>`;
+        if (adjMap.size === 0) adjHtml += `<p>Нет связей.</p>`;
+        else for (let [src, neigh] of adjMap.entries()) {
+            neigh.sort((a,b)=>parseFloat(b.avg)-parseFloat(a.avg));
+            adjHtml += `<div><strong>${src}</strong> → [${neigh.map(n=>`${n.dst}(${n.avg})`).join(', ')}]</div>`;
+        }
+
+        return `<h2>📈 ОБЩАЯ СТАТИСТИКА LQI</h2>
+                <p><strong>📄 Общее количество записей LQI после парсинга:</strong> ${totalRawRecords}</p>
+                <p>Уникальных связей: ${total}<br>Мин средний LQI: ${minLqi.toFixed(1)}<br>Макс средний LQI: ${maxLqi.toFixed(1)}<br>Среднее средних: ${meanLqi}<br>Медиана: ${median.toFixed(1)}${stdText}</p>
+                ${distHtml}
+                ${nodeStatsHtml}
+                ${topHtml}
+                ${symmetryHtml}
+                ${adjHtml}
+                <hr><small>Порог отображения графа: ${adjThreshold}</small>`;
+    }
+
+    function buildLqiGraph(edges, threshold) {
+        const adj = new Map();
+        const filteredEdges = [];
+        const nodesSet = new Set();
+        for (let e of edges) {
+            if (e.avgLqi >= threshold) {
+                filteredEdges.push({ from: e.from, to: e.to, weight: e.avgLqi, count: e.count });
+                nodesSet.add(e.from); nodesSet.add(e.to);
+                if (!adj.has(e.from)) adj.set(e.from, []);
+                adj.get(e.from).push({ dst: e.to, weight: e.avgLqi });
+            }
+        }
+        const nodes = Array.from(nodesSet).map(id => ({ id, label: id }));
+        return { adj, edgesList: filteredEdges, nodes };
+    }
+
+    function getRedGreenColor(lqi, minW, maxW) {
+        if (minW === maxW) return '#2cd47c';
+        let t = (lqi - minW) / (maxW - minW);
+        let r = t<0.5 ? 255 : Math.floor(255 * (1 - 2*(t-0.5)));
+        let g = t<0.5 ? Math.floor(255 * 2 * t) : 255;
+        return `rgb(${r}, ${g}, 0)`;
+    }
+
+    function renderLqiGraph(edgesList, nodesArray) {
+        const container = document.getElementById('lqiNetwork');
+        if (lqiNetwork) lqiNetwork.destroy();
+
+        if (!edgesList.length) {
+            document.getElementById('lqiGraphStatus').innerText = `Нет рёбер с LQI >= ${document.getElementById('lqiThreshold').value}`;
+            document.getElementById('lqiRangeLabel').innerText = "🔴 низкий LQI → 🟢 высокий LQI";
+            updateLqiRouteSelectors([]);
+            return;
+        }
+
+        const weights = edgesList.map(e => e.weight);
+        const minW = Math.min(...weights), maxW = Math.max(...weights);
+        document.getElementById('lqiRangeLabel').innerHTML = `🔴 ${minW.toFixed(0)} (min) → 🟢 ${maxW.toFixed(0)} (max)`;
+
+        const counts = edgesList.map(e => e.count);
+        const minC = Math.min(...counts), maxC = Math.max(...counts);
+
+        const visEdges = edgesList.map((edge, idx) => ({
+            id: idx,
+            from: edge.from,
+            to: edge.to,
+            arrows: { to: { enabled: true } },
+            color: getRedGreenColor(edge.weight, minW, maxW),
+            width: (maxC > minC) ? 0.8 + (edge.count - minC)/(maxC-minC)*4.2 : 2,
+            title: `${edge.from}→${edge.to}\nСр.LQI: ${edge.weight.toFixed(1)}\nПакетов: ${edge.count}`,
+            smooth: false
+        }));
+
+        const visNodes = nodesArray.map(nodeId => {
+            let bg = '#4f7aa6', borderWidth = 1, borderColor = '#7c9ac0';
+            if (nodeId === '0x0000' || nodeId === '0000') { bg = '#f5a623'; borderWidth = 3; borderColor = '#ffcd7e'; }
+            return { id: nodeId, label: nodeId, shape: 'dot', size: 35, font: { size: 18, face: 'monospace', color: '#f0f3f8' }, color: { background: bg, border: borderColor }, borderWidth, shadow: true };
+        });
+
+        const options = {
+            nodes: { shadow: true },
+            edges: { smooth: false },
+            physics: 
+			{ enabled: lqiPhysicsEnabled, solver: 'forceAtlas2Based', 
+			forceAtlas2Based: { 
+								gravitationalConstant: -150, 
+								centralGravity: 0.001, 
+								springLength: 600, 
+								springConstant: 0.009, 
+								damping: 0.4, 
+								avoidOverlap: 0.6 }, 
+			stabilization: { iterations: 150, fit: true } },
+            interaction: { hover: true, tooltipDelay: 200 }
+        };
+        lqiNetwork = new vis.Network(container, { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) }, options);
+        document.getElementById('lqiGraphStatus').innerText = `Узлов: ${visNodes.length}, рёбер: ${visEdges.length}. LQI min=${minW.toFixed(0)}, max=${maxW.toFixed(0)}. 🟠 0x0000 выделен.`;
+        lqiCurrentEdgesList = edgesList.map((e, idx) => ({ ...e, id: idx }));
+
+        lqiOriginalNodeColors.clear();
+        for (let node of visNodes) {
+            lqiOriginalNodeColors.set(node.id, { background: node.color.background, border: node.color.border });
+        }
+        lqiOriginalEdgeStyles.clear();
+        for (let edge of visEdges) {
+            lqiOriginalEdgeStyles.set(edge.id, { color: edge.color, width: edge.width });
+        }
+        updateLqiRouteSelectors(nodesArray);
+    }
+
+    function updateLqiRouteSelectors(nodesArray) {
+        const startSel = document.getElementById('lqiRouteStart');
+        const endSel = document.getElementById('lqiRouteEnd');
+        if (!startSel || !endSel) return;
+        startSel.disabled = nodesArray.length === 0;
+        endSel.disabled = nodesArray.length === 0;
+        startSel.innerHTML = nodesArray.length ? '<option value="">-- выберите узел --</option>' : '<option value="">-- нет узлов --</option>';
+        endSel.innerHTML = nodesArray.length ? '<option value="">-- выберите узел --</option>' : '<option value="">-- нет узлов --</option>';
+        for (let nodeId of nodesArray) {
+            startSel.appendChild(new Option(nodeId, nodeId));
+            endSel.appendChild(new Option(nodeId, nodeId));
+        }
+    }
+
+    function findLqiRoute(adj, start, end) {
+        if (!adj.has(start) || !adj.has(end) || start === end) return null;
+        const distFromStart = new Map();
+        const queue = [start];
+        distFromStart.set(start, 0);
+        while (queue.length) {
+            const u = queue.shift();
+            for (let { dst } of adj.get(u) || []) {
+                if (!distFromStart.has(dst)) {
+                    distFromStart.set(dst, distFromStart.get(u) + 1);
+                    queue.push(dst);
+                }
+            }
+        }
+        if (!distFromStart.has(end)) return null;
+        const minHops = distFromStart.get(end);
+
+        const revAdj = new Map();
+        for (let [u, neighbors] of adj.entries()) for (let { dst, weight } of neighbors) { if (!revAdj.has(dst)) revAdj.set(dst, []); revAdj.get(dst).push({ from: u, weight }); }
+
+        const distToEnd = new Map();
+        const qEnd = [end];
+        distToEnd.set(end, 0);
+        while (qEnd.length) { const u = qEnd.shift(); for (let { from } of revAdj.get(u) || []) { if (!distToEnd.has(from)) { distToEnd.set(from, distToEnd.get(u)+1); qEnd.push(from); } } }
+
+        const layeredEdges = [];
+        for (let [u, neighbors] of adj.entries()) {
+            const du = distFromStart.get(u);
+            if (du === undefined) continue;
+            for (let { dst, weight } of neighbors) {
+                const dd = distFromStart.get(dst);
+                if (dd === du+1 && du+1 + (distToEnd.get(dst)||0) === minHops) {
+                    layeredEdges.push({ from: u, to: dst, weight, layer: du });
+                }
+            }
+        }
+        const nodesByLayer = new Map();
+        for (let e of layeredEdges) { nodesByLayer.set(e.layer, (nodesByLayer.get(e.layer)||new Set()).add(e.from)); nodesByLayer.set(e.layer+1, (nodesByLayer.get(e.layer+1)||new Set()).add(e.to)); }
+        const maxLayer = Math.max(...nodesByLayer.keys());
+        const dp = new Map(); const nextNode = new Map();
+        dp.set(end, 0); nextNode.set(end, null);
+        for (let layer = maxLayer; layer >= 0; layer--) {
+            const nodesInLayer = nodesByLayer.get(layer);
+            if (!nodesInLayer) continue;
+            for (let u of nodesInLayer) {
+                let best = -Infinity, bestNext = null;
+                for (let e of layeredEdges) if (e.from === u && dp.has(e.to)) { const cand = e.weight + dp.get(e.to); if (cand > best) { best = cand; bestNext = e.to; } }
+                if (best !== -Infinity) { dp.set(u, best); nextNode.set(u, bestNext); }
+            }
+        }
+        if (!dp.has(start)) return null;
+        const path = [start]; let cur = start;
+        while (cur !== end && nextNode.get(cur)) { cur = nextNode.get(cur); path.push(cur); }
+        if (path[path.length-1] !== end) return null;
+        return { path, totalLqi: dp.get(start), hops: path.length-1 };
+    }
+
+    function lqiDimExceptRoute(routePath) {
+        if (!lqiNetwork) return;
+        const allNodes = lqiNetwork.body.data.nodes.get();
+        const allEdges = lqiNetwork.body.data.edges.get();
+        const routeNodeSet = new Set(routePath);
+        const routeEdgeSet = new Set();
+        for (let i=0; i<routePath.length-1; i++) {
+            const from = routePath[i];
+            const to = routePath[i+1];
+            const edge = allEdges.find(e => e.from === from && e.to === to);
+            if (edge) routeEdgeSet.add(edge.id);
+        }
+        const nodeUpdates = [];
+        for (let node of allNodes) {
+            if (routeNodeSet.has(node.id)) {
+                const orig = lqiOriginalNodeColors.get(node.id);
+                nodeUpdates.push({ id: node.id, color: { background: orig.background, border: orig.border }, opacity: 1 });
+            } else {
+                nodeUpdates.push({ id: node.id, color: { background: '#3a4455', border: '#5a6a80' }, opacity: 0.35 });
+            }
+        }
+        lqiNetwork.body.data.nodes.update(nodeUpdates);
+
+        const edgeUpdates = [];
+        for (let edge of allEdges) {
+            if (routeEdgeSet.has(edge.id)) {
+                const orig = lqiOriginalEdgeStyles.get(edge.id);
+                edgeUpdates.push({ id: edge.id, color: '#ffaa00', width: 8, opacity: 1 });
+            } else {
+                let dimColor = '#555555';
+                if (edge.color && typeof edge.color === 'string') dimColor = '#666666';
+                edgeUpdates.push({ id: edge.id, color: dimColor, width: (edge.width || 2) * 0.6, opacity: 0.3 });
+            }
+        }
+        lqiNetwork.body.data.edges.update(edgeUpdates);
+    }
+
+    function lqiResetHighlight() {
+        if (!lqiNetwork) return;
+        const allNodes = lqiNetwork.body.data.nodes.get();
+        const nodeUpdates = [];
+        for (let node of allNodes) {
+            const orig = lqiOriginalNodeColors.get(node.id);
+            if (orig) {
+                nodeUpdates.push({ id: node.id, color: { background: orig.background, border: orig.border }, opacity: 1 });
+            } else {
+                nodeUpdates.push({ id: node.id, opacity: 1 });
+            }
+        }
+        lqiNetwork.body.data.nodes.update(nodeUpdates);
+
+        const allEdges = lqiNetwork.body.data.edges.get();
+        const edgeUpdates = [];
+        for (let edge of allEdges) {
+            const orig = lqiOriginalEdgeStyles.get(edge.id);
+            if (orig) {
+                edgeUpdates.push({ id: edge.id, color: orig.color, width: orig.width, opacity: 1 });
+            } else {
+                edgeUpdates.push({ id: edge.id, opacity: 1 });
+            }
+        }
+        lqiNetwork.body.data.edges.update(edgeUpdates);
+        lqiCurrentRoutePath = null;
+    }
+
+    function runLqiAnalysis() {
+        if (!lqiData.length) {
+            document.getElementById('lqiReport').style.display = 'none';
+            document.getElementById('lqiReport').innerHTML = '<span style="color:#d98c8c;">Нет данных LQI.</span>';
+            return;
+        }
+
+        let thr = parseInt(document.getElementById('lqiThreshold').value, 10);
+        let top = parseInt(document.getElementById('lqiTopN').value, 10);
+        if (isNaN(thr) || thr < 0) thr = 150;
+        if (isNaN(top) || top < 1) top = 10;
+        document.getElementById('lqiThreshold').value = thr;
+        document.getElementById('lqiTopN').value = top;
+
+        const sym = document.getElementById('lqiSymmetry').checked;
+        const verb = document.getElementById('lqiVerbose').checked;
+
+        const aggregatedEdges = buildAggregatedEdges(lqiData);
+        document.getElementById('lqiReport').style.display = 'block';
+        document.getElementById('lqiReport').innerHTML = generateLqiReport(aggregatedEdges, {
+            topN: top,
+            symmetry: sym,
+            verbose: verb,
+            adjThreshold: thr,
+            totalRawRecords: lqiData.length
+        });
+
+        const { adj, edgesList, nodes } = buildLqiGraph(aggregatedEdges, thr);
+        lqiAdjList = adj;
+        lqiCurrentNodeIds = nodes.map(n => n.id);
+        renderLqiGraph(edgesList, lqiCurrentNodeIds);
+        lqiResetHighlight();
+        document.getElementById('lqiRouteResult').innerHTML = "📌 Маршрут не выбран. Выберите узлы и нажмите «Найти маршрут».";
+        lqiCurrentRoutePath = null;
+    }
+
+    function onLqiFindRoute() {
+        if (!lqiAdjList.size || lqiCurrentNodeIds.length === 0) {
+            document.getElementById('lqiRouteResult').innerHTML = "❌ Нет загруженных данных или граф пуст.";
+            return;
+        }
+        const start = document.getElementById('lqiRouteStart').value;
+        const end = document.getElementById('lqiRouteEnd').value;
+        if (!start || !end) {
+            document.getElementById('lqiRouteResult').innerHTML = "⚠️ Выберите стартовый и конечный узлы.";
+            return;
+        }
+        if (start === end) {
+            document.getElementById('lqiRouteResult').innerHTML = "⚠️ Стартовый и конечный узлы совпадают.";
+            return;
+        }
+        const result = findLqiRoute(lqiAdjList, start, end);
+        if (!result) {
+            document.getElementById('lqiRouteResult').innerHTML = `🔻 Нет маршрута из ${start} в ${end} (ориентированный граф, порог LQI ${document.getElementById('lqiThreshold').value})`;
+            lqiResetHighlight();
+            return;
+        }
+        const pathStr = result.path.join(' → ');
+        document.getElementById('lqiRouteResult').innerHTML = `✅ <strong>Маршрут найден</strong><br>📌 Путь: <span class="route-path">${pathStr}</span><br>📈 Количество переходов: <strong>${result.hops}</strong><br>📊 Суммарный LQI: <strong>${result.totalLqi.toFixed(1)}</strong> (максимальный среди кратчайших)`;
+        lqiDimExceptRoute(result.path);
+        lqiCurrentRoutePath = result.path;
+    }
+
+    function onLqiResetRoute() {
+        lqiResetHighlight();
+        lqiCurrentRoutePath = null;
+        document.getElementById('lqiRouteResult').innerHTML = "📌 Маршрут сброшен. Выберите узлы и нажмите «Найти маршрут».";
+    }
+
+    function toggleLqiPhysics() {
+        lqiPhysicsEnabled = !lqiPhysicsEnabled;
+        if (lqiNetwork) {
+            lqiNetwork.setOptions({ physics: { enabled: lqiPhysicsEnabled } });
+        }
+        const btn = document.getElementById('lqiPhysicsToggle');
+        btn.textContent = lqiPhysicsEnabled ? "🔘 Отключить физику" : "✅ Включить физику";
+    }
+
+    // ======================================================================
+    // 3. МОДУЛЬ МАРШРУТОВ
+    // ======================================================================
+    let routesChartInstance = null;
+    let currentPage = 0;
+    let currentFilter = '';
+
+    function generateRoutesStats() {
+        if (!routeData.length) return "<p>Нет маршрутов.</p>";
+        const uniqueCount = uniquePairs.length;
+        const hopStats = new Map();
+        for (const pairs of uniquePairs) {
+            const h = pairs.length;
+            const c = routeCounter.get(JSON.stringify(pairs));
+            if (!hopStats.has(h)) hopStats.set(h, { unique: 0, packets: 0 });
+            const st = hopStats.get(h);
+            st.unique += 1;
+            st.packets += c;
+        }
+        const sortedHops = Array.from(hopStats.entries()).sort((a,b) => a[0]-b[0]);
+
+        let out = '';
+        out += `Всего пакетов: ${totalPackets}\n`;
+        out += `Уникальных маршрутов: ${uniqueCount}\n\n`;
+        out += 'Распределение по хопам:\n';
+        out += 'Хопов   | Уникальных | Пакетов\n';
+        out += '-'.repeat(35) + '\n';
+        for (const [h, st] of sortedHops) {
+            out += `${h.toString().padEnd(8)} | ${st.unique.toString().padEnd(10)} | ${st.packets}\n`;
+        }
+        const weightedAvg = uniquePairs.reduce((sum, p) => sum + p.length * routeCounter.get(JSON.stringify(p)), 0) / totalPackets;
+        const simpleAvg = uniquePairs.reduce((sum, p) => sum + p.length, 0) / uniqueCount;
+        out += `\nСреднее хопов (взвешенное): ${weightedAvg.toFixed(2)}\n`;
+        out += `Среднее хопов (по уникальным): ${simpleAvg.toFixed(2)}\n`;
+
+        out += '\nТоп-5 маршрутов:\n';
+        const sortedRoutes = [...uniquePairs].sort((a,b) => routeCounter.get(JSON.stringify(b)) - routeCounter.get(JSON.stringify(a)));
+        const top5 = sortedRoutes.slice(0,5);
+        out += 'ID | Кол-во | Доля | Маршрут\n';
+        out += '-'.repeat(80) + '\n';
+        for (const pairs of top5) {
+            const uid = uniquePairs.indexOf(pairs)+1;
+            const count = routeCounter.get(JSON.stringify(pairs));
+            const pct = (count / totalPackets * 100);
+            out += `${uid.toString().padEnd(3)} | ${count.toString().padEnd(6)} | ${pct.toFixed(1)}% | ${formatRouteString(pairs)}\n`;
+        }
+
+        out += '\nВсе узлы (промежуточные, без учёта координатора):\n';
+        const nodeCounter = new Map();
+        for (const { pairs } of routeData) {
+            for (const p of pairs) {
+                const key = JSON.stringify(p.eui) + '|' + p.short;
+                nodeCounter.set(key, (nodeCounter.get(key) || 0) + 1);
+            }
+        }
+        const sortedNodes = Array.from(nodeCounter.entries()).sort((a,b) => b[1]-a[1]);
+        out += 'EUI                | Short  | Пакетов | Доля\n';
+        out += '-'.repeat(50) + '\n';
+        for (const [key, count] of sortedNodes) {
+            const parts = key.split('|');
+            const euiBytes = JSON.parse(parts[0]);
+            const short = parseInt(parts[1], 10);
+            out += `${formatEUI(euiBytes).padEnd(18)} | ${formatShort(short).padEnd(7)} | ${count.toString().padEnd(7)} | ${(count/totalPackets*100).toFixed(1)}%\n`;
+        }
+        return out;
+    }
+
+    const ROWS_PER_PAGE = 50;
+
+    function getFilteredAllRoutes() {
+        if (!currentFilter.trim()) return routeData;
+        const f = currentFilter.trim().toUpperCase();
+        return routeData.filter(r => {
+            if (r.routeId.toString().includes(f)) return true;
+            return r.pairs.some(p => formatEUI(p.eui).includes(f) || formatShort(p.short).includes(f));
+        });
+    }
+    function getFilteredUniquePairs() {
+        if (!currentFilter.trim()) return uniquePairs;
+        const f = currentFilter.trim().toUpperCase();
+        return uniquePairs.filter(pairs => pairs.some(p => formatEUI(p.eui).includes(f) || formatShort(p.short).includes(f)));
+    }
+
+    function buildAllRoutesTable(page) {
+        const filtered = getFilteredAllRoutes();
+        const total = filtered.length;
+        const totalPages = Math.ceil(total/ROWS_PER_PAGE) || 1;
+        if (page >= totalPages) currentPage = totalPages-1;
+        if (currentPage < 0) currentPage = 0;
+        const start = currentPage * ROWS_PER_PAGE;
+        const end = Math.min(start+ROWS_PER_PAGE, total);
+        const subset = filtered.slice(start, end);
+
+        let html = `<table><thead><tr><th>RouteID</th><th>Hop</th><th>EUI</th><th>ShortAddress</th><th>NextHop</th></tr></thead><tbody>`;
+        for (const { routeId, pairs } of subset) {
+            const entries = buildRouteEntries(pairs, routeId);
+            for (const e of entries) {
+                html += `<tr><td>${e.RouteID}</td><td>${e.Hop}</td><td>${e.EUI}</td><td>${e.ShortAddress}</td><td>${e.NextHop}</td></tr>`;
+            }
+        }
+        html += '</tbody></table>';
+        document.getElementById('pageInfo').textContent = `Страница ${currentPage+1} из ${totalPages}`;
+        return html;
+    }
+
+    function buildUniqueRoutesTable(page) {
+        const filtered = getFilteredUniquePairs();
+        const total = filtered.length;
+        const totalPages = Math.ceil(total/ROWS_PER_PAGE) || 1;
+        if (page >= totalPages) currentPage = totalPages-1;
+        if (currentPage < 0) currentPage = 0;
+        const start = currentPage * ROWS_PER_PAGE;
+        const end = Math.min(start+ROWS_PER_PAGE, total);
+        const subset = filtered.slice(start, end);
+
+        const fieldnames = ['UniqueRouteID','Count','HopCount','StartEUI','StartShort','OriginalRouteIDs','Hop','EUI','ShortAddress','NextHop'];
+        let html = `<table><thead><tr>${fieldnames.map(f=>`<th>${f}</th>`).join('')}</tr></thead><tbody>`;
+        for (const pairs of subset) {
+            const uid = uniquePairs.indexOf(pairs)+1;
+            const count = routeCounter.get(JSON.stringify(pairs));
+            const routeIds = routeData.filter(r => JSON.stringify(r.pairs) === JSON.stringify(pairs)).map(r => r.routeId);
+            const routeIdsStr = routeIds.join(',');
+            const firstId = routeIds[0] || 0;
+            const hopCount = pairs.length;
+            const startEui = formatEUI(pairs[0].eui);
+            const startShort = formatShort(pairs[0].short);
+            const entries = buildRouteEntries(pairs, firstId, hopCount, startEui, startShort);
+            for (const e of entries) {
+                const row = {
+                    UniqueRouteID: uid,
+                    Count: count,
+                    HopCount: hopCount,
+                    StartEUI: startEui,
+                    StartShort: startShort,
+                    OriginalRouteIDs: routeIdsStr,
+                    Hop: e.Hop,
+                    EUI: e.EUI,
+                    ShortAddress: e.ShortAddress,
+                    NextHop: e.NextHop
+                };
+                html += `<tr>${fieldnames.map(f=>`<td>${row[f]??''}</td>`).join('')}</tr>`;
+            }
+        }
+        html += '</tbody></table>';
+        document.getElementById('pageInfo').textContent = `Страница ${currentPage+1} из ${totalPages}`;
+        return html;
+    }
+
+    function buildRouteEntries(pairs, routeId, hopCount, startEui, startShort) {
+        const hc = hopCount || pairs.length;
+        const se = startEui || formatEUI(pairs[0].eui);
+        const ss = startShort || formatShort(pairs[0].short);
+        const entries = [];
+        for (let i=0; i<pairs.length; i++) {
+            const nextShort = (i+1 < pairs.length) ? pairs[i+1].short : 0x0000;
+            entries.push({
+                RouteID: routeId,
+                Hop: i+1,
+                EUI: formatEUI(pairs[i].eui),
+                ShortAddress: formatShort(pairs[i].short),
+                NextHop: formatShort(nextShort),
+                HopCount: hc,
+                StartEUI: se,
+                StartShort: ss
+            });
+        }
+        entries.push({
+            RouteID: routeId,
+            Hop: pairs.length+1,
+            EUI: 'N/A',
+            ShortAddress: '0x0000',
+            NextHop: '',
+            HopCount: hc,
+            StartEUI: se,
+            StartShort: ss
+        });
+        return entries;
+    }
+
+    function renderRoutesTables() {
+        document.getElementById('allRoutesTable').innerHTML = buildAllRoutesTable(currentPage);
+        document.getElementById('uniqueRoutesTable').innerHTML = buildUniqueRoutesTable(currentPage);
+    }
+
+    function renderRoutesChart(barWidth, sortDesc, useRank) {
+        const ctx = document.getElementById('popularityChart').getContext('2d');
+        if (routesChartInstance) routesChartInstance.destroy();
+
+        const sorted = [...uniquePairs].sort((a,b) => {
+            const ca = routeCounter.get(JSON.stringify(a));
+            const cb = routeCounter.get(JSON.stringify(b));
+            return sortDesc ? cb-ca : ca-cb;
+        });
+        let labels, xlabel;
+        if (useRank) {
+            labels = sorted.map((_,i) => i+1);
+            xlabel = 'Ранг (порядковый номер по убыванию доли)';
+        } else {
+            const idMap = new Map(uniquePairs.map((p,i) => [JSON.stringify(p), i+1]));
+            labels = sorted.map(p => idMap.get(JSON.stringify(p)));
+            xlabel = 'UniqueRouteID (отсортировано по убыванию доли)';
+        }
+        const data = sorted.map(p => (routeCounter.get(JSON.stringify(p)) / totalPackets * 100));
+
+        routesChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Доля от общего числа пакетов, %',
+                    data: data,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: 'rgba(30, 58, 95, 0.8)',
+                    borderWidth: 1,
+                    barPercentage: 1,
+                    categoryPercentage: barWidth,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { title: { display: true, text: xlabel }, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 30 } },
+                    y: { title: { display: true, text: 'Доля от общего числа пакетов, %' }, beginAtZero: true }
+                }
+            }
+        });
+        localStorage.setItem('chartSettings', JSON.stringify({ barWidth, sortDesc, useRank }));
+    }
+
+    // ======================================================================
+    // 4. МОДУЛЬ ГРАФА ПЕРЕХОДОВ
+    // ======================================================================
+    let graphNetwork = null;
+    let graphPositions = {};
+    let graphViewport = null;
+    let graphPhysicsEnabled = true;
+    let graphAnimationTimer = null;
+    let graphIsPlaying = false;
+
+    function loadGraphPositions() {
+        const saved = localStorage.getItem('zigbee_graph_positions');
+        if (saved) { try { graphPositions = JSON.parse(saved); } catch(e) { graphPositions = {}; } }
+        else graphPositions = {};
+    }
+    function saveGraphPositions() {
+        if (graphNetwork) {
+            try { const pos = graphNetwork.getPositions(); for (const id in pos) graphPositions[id] = pos[id]; localStorage.setItem('zigbee_graph_positions', JSON.stringify(graphPositions)); } catch(e) {}
+        }
+    }
+    function saveGraphViewport() {
+        if (graphNetwork) {
+            try { const pos = graphNetwork.getViewPosition(); const scale = graphNetwork.getScale(); graphViewport = { position: pos, scale: scale }; } catch(e) {}
+        }
+    }
+
+    function getTimelineMinMax() {
+        if (timelineData.length === 0) return null;
+        const times = timelineData.map(d => d.timeAbs);
+        return { min: Math.min(...times), max: Math.max(...times) };
+    }
+
+    function getFilteredRoutesByTime(minTime, maxTime) {
+        if (!timelineData.length) return routeData;
+        const routeIdToTime = {};
+        for (const d of timelineData) routeIdToTime[d.routeId] = d.timeAbs;
+        return routeData.filter(r => {
+            const t = routeIdToTime[r.routeId];
+            if (t === undefined) return false;
+            return t >= minTime && t <= maxTime;
+        });
+    }
+
+    function buildGraphData(minWeight, minTime, maxTime) {
+        let routesToShow = routeData;
+        if (minTime !== undefined && maxTime !== undefined && timelineData.length > 0) {
+            routesToShow = getFilteredRoutesByTime(minTime, maxTime);
+        }
+        if (!routesToShow || routesToShow.length === 0) {
+            showToast('Нет маршрутов в выбранном временном интервале.');
+            return null;
+        }
+
+        const nodesMap = {};
+        const edgeCount = {};
+
+        function addNode(eui, short) {
+            if (!nodesMap[eui]) { nodesMap[eui] = { short: short, count: 0 }; }
+            nodesMap[eui].count++;
+            if (short && !nodesMap[eui].short) nodesMap[eui].short = short;
+        }
+
+        for (const route of routesToShow) {
+            const pairs = route.pairs;
+            if (!pairs || pairs.length === 0) continue;
+            for (const p of pairs) {
+                const eui = formatEUI(p.eui);
+                const short = formatShort(p.short);
+                addNode(eui, short);
+            }
+            addNode('0x0000', '0x0000');
+
+            for (let i=0; i<pairs.length; i++) {
+                const from = formatEUI(pairs[i].eui);
+                let to;
+                if (i+1 < pairs.length) to = formatEUI(pairs[i+1].eui);
+                else to = '0x0000';
+                const key = from + '|' + to;
+                edgeCount[key] = (edgeCount[key] || 0) + 1;
+            }
+        }
+
+        const filteredEdges = Object.entries(edgeCount).filter(([key, weight]) => weight >= minWeight);
+        if (filteredEdges.length === 0) {
+            showToast(`Нет рёбер с весом >= ${minWeight}. Попробуйте уменьшить порог.`);
+            return null;
+        }
+
+        const nodes = [];
+        for (const [eui, data] of Object.entries(nodesMap)) {
+            const label = data.short || eui.slice(-6);
+            const title = eui + (data.short ? ' ('+data.short+')' : '');
+            const size = 6 + Math.min(data.count * 0.3, 12);
+            const color = eui === '0x0000' ? '#ffcc00' : '#3b82f6';
+            nodes.push({
+                id: eui,
+                label: label,
+                title: title,
+                shape: 'dot',
+                size: size,
+                color: color,
+                font: { color: '#ffffff', size: 12, face: 'Arial' }
+            });
+        }
+
+        const edges = [];
+        const maxWeight = Math.max(...filteredEdges.map(([key,w]) => w), 1);
+        for (const [key, weight] of filteredEdges) {
+            const [from, to] = key.split('|');
+            const width = 1 + (weight / maxWeight) * 4;
+            edges.push({
+                id: key,
+                from: from,
+                to: to,
+                width: width,
+                label: weight.toString(),
+                title: `Переходов: ${weight}`,
+                color: {
+                    color: `rgba(59,130,246,${0.3 + 0.7 * (weight/maxWeight)})`,
+                    highlight: '#1e40af'
+                }
+            });
+        }
+        return { nodes, edges };
+    }
+
+    function buildGraphWithFilter(minWeight, physicsEnabled, minTime, maxTime) {
+        const container = document.getElementById('graphContainer');
+        if (graphNetwork) {
+            saveGraphPositions();
+            saveGraphViewport();
+            graphNetwork.destroy();
+            graphNetwork = null;
+        }
+
+        const data = buildGraphData(minWeight, minTime, maxTime);
+        if (!data) return;
+
+        const options = {
+            physics: {
+                enabled: false,
+                stabilization: { iterations: 150 },
+                solver: 'forceAtlas2Based',
+                forceAtlas2Based: {
+                    gravitationalConstant: -150,
+                    centralGravity: 0.001,
+                    springLength: 600,
+                    springConstant: 0.009
+                }
+            },
+            interaction: { hover: true, tooltipDelay: 200 },
+            nodes: { font: { color: '#ffffff', size: 12, face: 'Arial' } },
+            edges: { smooth: { type: 'curvedCW', roundness: 0.2 }, font: { size: 10, color: '#343434' } }
+        };
+
+        graphNetwork = new vis.Network(container, {
+            nodes: new vis.DataSet(data.nodes),
+            edges: new vis.DataSet(data.edges)
+        }, options);
+
+        if (Object.keys(graphPositions).length > 0) {
+            try { graphNetwork.setPositions(graphPositions); } catch(e) {}
+        }
+        graphNetwork.setOptions({ physics: { enabled: physicsEnabled } });
+        graphPhysicsEnabled = physicsEnabled;
+
+        if (graphViewport) {
+            try { graphNetwork.moveTo(graphViewport); } catch(e) {}
+        }
+
+        graphNetwork.on('dragEnd', function() { saveGraphPositions(); saveGraphViewport(); });
+        graphNetwork.on('zoom', function() { saveGraphViewport(); });
+        graphNetwork.on('stabilized', function() { saveGraphPositions(); });
+    }
+
+    function refreshGraphData(minWeight, minTime, maxTime) {
+        if (!graphNetwork) {
+            buildGraphWithFilter(minWeight, graphPhysicsEnabled, minTime, maxTime);
+            return;
+        }
+        const newData = buildGraphData(minWeight, minTime, maxTime);
+        if (!newData) return;
+
+        saveGraphPositions();
+        saveGraphViewport();
+        graphNetwork.setOptions({ physics: { enabled: false } });
+        graphNetwork.setData({
+            nodes: new vis.DataSet(newData.nodes),
+            edges: new vis.DataSet(newData.edges)
+        });
+        if (Object.keys(graphPositions).length > 0) {
+            try { graphNetwork.setPositions(graphPositions); } catch(e) {}
+        }
+        if (graphViewport) {
+            try { graphNetwork.moveTo(graphViewport); } catch(e) {}
+        }
+        if (graphPhysicsEnabled) {
+            graphNetwork.setOptions({ physics: { enabled: true, stabilization: false } });
+        }
+    }
+
+    function toggleGraphPhysics() {
+        graphPhysicsEnabled = document.getElementById('physicsToggle').checked;
+        if (graphNetwork) {
+            graphNetwork.setOptions({ physics: { enabled: graphPhysicsEnabled, stabilization: false } });
+        }
+    }
+
+    function updateGraphFromUI() {
+        const minWeight = parseInt(document.getElementById('minWeightSlider').value, 10);
+        document.getElementById('minWeightValue').textContent = minWeight;
+
+        const fromPct = parseFloat(document.getElementById('timeFromSlider').value) / 100;
+        const toPct = parseFloat(document.getElementById('timeToSlider').value) / 100;
+        let minTime, maxTime;
+        const range = getTimelineMinMax();
+        if (range) {
+            const duration = range.max - range.min;
+            minTime = range.min + duration * fromPct;
+            maxTime = range.min + duration * toPct;
+            document.getElementById('timeFromLabel').textContent = formatFullDateTime(minTime);
+            document.getElementById('timeToLabel').textContent = formatFullDateTime(maxTime);
+            document.getElementById('timeInfo').textContent = `От ${formatFullDateTime(minTime)} до ${formatFullDateTime(maxTime)}`;
+        } else {
+            minTime = undefined; maxTime = undefined;
+            document.getElementById('timeFromLabel').textContent = '—';
+            document.getElementById('timeToLabel').textContent = '—';
+            document.getElementById('timeInfo').textContent = 'Нет временных меток';
+        }
+
+        if (graphNetwork) {
+            refreshGraphData(minWeight, minTime, maxTime);
+        } else {
+            buildGraphWithFilter(minWeight, graphPhysicsEnabled, minTime, maxTime);
+        }
+    }
+
+    function togglePlay() {
+        const playBtn = document.getElementById('playBtn');
+        if (graphIsPlaying) {
+            if (graphAnimationTimer) { clearInterval(graphAnimationTimer); graphAnimationTimer = null; }
+            graphIsPlaying = false;
+            playBtn.textContent = '▶ Воспроизвести';
+            return;
+        }
+        const range = getTimelineMinMax();
+        if (!range) { showToast('Нет временных меток для анимации.'); return; }
+        graphIsPlaying = true;
+        playBtn.textContent = '⏹ Стоп';
+        const fromSlider = document.getElementById('timeFromSlider');
+        const toSlider = document.getElementById('timeToSlider');
+        const step = 0.5;
+        graphAnimationTimer = setInterval(() => {
+            let fromVal = parseFloat(fromSlider.value);
+            let toVal = parseFloat(toSlider.value);
+            let newFrom = fromVal + step;
+            let newTo = toVal + step;
+            if (newTo > 100) { newFrom = 0; newTo = 10; }
+            fromSlider.value = newFrom;
+            toSlider.value = newTo;
+            updateGraphFromUI();
+        }, 300);
+    }
+
+    // ======================================================================
+    // 5. ДИНАМИКА (timeline)
+    // ======================================================================
+    let timelineChartInstance = null;
+
+    function buildTimelineChart(intervalSeconds, uniqueOnly, showOther, showTotal) {
+        const ctx = document.getElementById('timelineChart').getContext('2d');
+        if (timelineChartInstance) timelineChartInstance.destroy();
+
+        const allPoints = [...timelineData.map(d => ({ time: d.timeAbs, type: 'route' })), ...otherTimelineData.map(d => ({ time: d.timeAbs, type: 'other' }))];
+        if (allPoints.length === 0) { showToast('Нет данных с временными метками.'); return; }
+        allPoints.sort((a,b) => a.time - b.time);
+        const minTime = allPoints[0].time;
+        const maxTime = allPoints[allPoints.length-1].time;
+        const totalDuration = maxTime - minTime;
+        const numBins = Math.ceil(totalDuration / intervalSeconds) + 1;
+        const routeBins = Array(numBins).fill(0).map(() => ({ total: 0, uniqueSet: new Set() }));
+        const otherBins = Array(numBins).fill(0);
+
+        for (const d of timelineData) {
+            const binIndex = Math.floor((d.timeAbs - minTime) / intervalSeconds);
+            if (binIndex >= 0 && binIndex < routeBins.length) {
+                routeBins[binIndex].total++;
+                if (uniqueOnly) routeBins[binIndex].uniqueSet.add(JSON.stringify(d.pairs));
+            }
+        }
+        for (const d of otherTimelineData) {
+            const binIndex = Math.floor((d.timeAbs - minTime) / intervalSeconds);
+            if (binIndex >= 0 && binIndex < otherBins.length) otherBins[binIndex]++;
+        }
+
+        const labels = routeBins.map((_, i) => {
+            const timeSec = minTime + i * intervalSeconds;
+            return formatTimeForAxis(timeSec, minTime);
+        });
+
+        const datasets = [];
+        const routeValues = uniqueOnly ? routeBins.map(b => b.uniqueSet.size) : routeBins.map(b => b.total);
+        const routeLabel = uniqueOnly ? 'Уникальные маршруты' : 'Маршрутные пакеты';
+        datasets.push({
+            label: routeLabel,
+            data: routeValues,
+            borderColor: 'rgba(59, 130, 246, 1)',
+            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            fill: true,
+            tension: 0.1,
+        });
+        if (showOther) {
+            datasets.push({
+                label: 'Другие пакеты',
+                data: otherBins,
+                borderColor: 'rgba(239, 68, 68, 1)',
+                backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                fill: true,
+                tension: 0.1,
+            });
+        }
+        if (showTotal) {
+            const totalValues = routeBins.map((_, i) => routeValues[i] + otherBins[i]);
+            datasets.push({
+                label: 'Всего пакетов',
+                data: totalValues,
+                borderColor: 'rgba(34, 197, 94, 1)',
+                backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                fill: true,
+                tension: 0.1,
+                borderDash: [5,5],
+            });
+        }
+
+        timelineChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: function(tooltipItems) {
+                                const index = tooltipItems[0].dataIndex;
+                                const timeSec = minTime + index * intervalSeconds;
+                                return 'Время: ' + formatFullDateTime(timeSec);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Время' }, ticks: { maxRotation: 45, autoSkip: true, maxTicksLimit: 30 } },
+                    y: { title: { display: true, text: 'Количество' }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // ======================================================================
+    // 6. СРАВНЕНИЕ
+    // ======================================================================
+    let compareData = null;
+
+    async function compareTwoEntries() {
+        const checked = document.querySelectorAll('.history-checkbox:checked');
+        if (checked.length !== 2) { showToast('Выберите ровно две записи для сравнения.'); return; }
+        const entries = [];
+        for (const cb of checked) {
+            const item = cb.closest('.history-item');
+            const storageKey = item.dataset.storagekey;
+            const hasData = item.dataset.hasdata === 'true';
+            const filename = item.dataset.filename;
+            if (!hasData || !storageKey) { showToast(`Данные для "${filename}" недоступны.`); return; }
+            const content = await getFileContent(storageKey);
+            if (!content) { showToast(`Данные для "${filename}" утеряны.`); return; }
+            entries.push({ filename, content });
+        }
+
+        const results = entries.map(entry => {
+            const text = entry.content;
+            let allR = [], routeId = 1;
+            const lines = text.split(/\r?\n/);
+            for (const line of lines) {
+                const allBytes = extractHexBytes(line);
+                let posAA = findMarker(allBytes, [0xAA, 0x01, 0xAA]);
+                if (posAA !== -1) {
+                    let idx = posAA + 4;
+                    const pairs = [];
+                    while (idx + 10 <= allBytes.length) {
+                        let eui = allBytes.slice(idx, idx+8);
+                        let short = allBytes[idx+8] + (allBytes[idx+9] << 8);
+                        pairs.push({ eui, short });
+                        idx += 10;
+                    }
+                    if (pairs.length > 0) {
+                        allR.push({ routeId, pairs });
+                        routeId++;
+                    }
+                }
+            }
+            const total = allR.length;
+            if (total === 0) return null;
+            const counterMap = new Map();
+            for (const { pairs } of allR) {
+                const key = JSON.stringify(pairs);
+                counterMap.set(key, (counterMap.get(key) || 0) + 1);
+            }
+            const uniqueSet = new Set();
+            for (const { pairs } of allR) uniqueSet.add(JSON.stringify(pairs));
+            const uniqueKeys = Array.from(uniqueSet);
+            const uniqueP = uniqueKeys.map(k => JSON.parse(k));
+            uniqueP.sort((a,b) => {
+                if (a.length !== b.length) return a.length - b.length;
+                const euiA = a[0]?.eui?.[0] || 0;
+                const euiB = b[0]?.eui?.[0] || 0;
+                return euiA - euiB;
+            });
+            return { allRoutes: allR, uniquePairs: uniqueP, counter: counterMap, totalPackets: total, filename: entry.filename };
+        });
+
+        if (results.some(r => r === null)) { showToast('Один из файлов не содержит корректных пакетов.'); return; }
+        compareData = results;
+
+        const modal = document.getElementById('compareModal');
+        const grid = document.getElementById('compareGrid');
+        grid.innerHTML = '';
+
+        results.forEach((data, idx) => {
+            const col = document.createElement('div');
+            col.className = 'compare-col';
+            const title = document.createElement('h4');
+            title.textContent = `${data.filename} (${data.totalPackets} пакетов)`;
+            col.appendChild(title);
+            const statsDiv = document.createElement('div');
+            statsDiv.className = 'compare-stats';
+            statsDiv.textContent = generateRoutesStatsForData(data.allRoutes, data.uniquePairs, data.counter, data.totalPackets);
+            col.appendChild(statsDiv);
+            grid.appendChild(col);
+        });
+
+        const chartsDiv = document.createElement('div');
+        chartsDiv.className = 'compare-charts';
+        results.forEach((data, idx) => {
+            const container = document.createElement('div');
+            container.className = 'chart-container';
+            const canvas = document.createElement('canvas');
+            canvas.id = `compareChart_${idx}`;
+            container.appendChild(canvas);
+            chartsDiv.appendChild(container);
+        });
+        grid.appendChild(chartsDiv);
+
+        const uniqueBlock = document.getElementById('compareUniqueBlock');
+        uniqueBlock.innerHTML = '';
+        const setA = new Set(results[0].uniquePairs.map(p => JSON.stringify(p)));
+        const setB = new Set(results[1].uniquePairs.map(p => JSON.stringify(p)));
+        const common = new Set([...setA].filter(x => setB.has(x)));
+        const onlyA = new Set([...setA].filter(x => !setB.has(x)));
+        const onlyB = new Set([...setB].filter(x => !setA.has(x)));
+
+        const renderSet = (title, set, color) => {
+            const div = document.createElement('div');
+            div.className = 'compare-unique';
+            div.innerHTML = `<h5 style="color:${color}">${title} (${set.size})</h5><ul>`;
+            if (set.size === 0) div.innerHTML += '<li>Нет</li>';
+            else for (const item of set) {
+                const pairs = JSON.parse(item);
+                div.innerHTML += `<li>${formatRouteString(pairs)}</li>`;
+            }
+            div.innerHTML += '</ul>';
+            return div;
+        };
+        uniqueBlock.appendChild(renderSet('Общие маршруты', common, '#22c55e'));
+        uniqueBlock.appendChild(renderSet(`Только "${results[0].filename}"`, onlyA, '#3b82f6'));
+        uniqueBlock.appendChild(renderSet(`Только "${results[1].filename}"`, onlyB, '#ef4444'));
+
+        modal.classList.add('active');
+
+        results.forEach((data, idx) => {
+            const ctx = document.getElementById(`compareChart_${idx}`).getContext('2d');
+            const sorted = [...data.uniquePairs].sort((a,b) => {
+                const ca = data.counter.get(JSON.stringify(a));
+                const cb = data.counter.get(JSON.stringify(b));
+                return cb - ca;
+            });
+            const labels = sorted.map((_,i) => i+1);
+            const values = sorted.map(p => (data.counter.get(JSON.stringify(p)) / data.totalPackets * 100));
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Доля, %',
+                        data: values,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(30, 58, 95, 0.8)',
+                        borderWidth: 1,
+                        barPercentage: 1,
+                        categoryPercentage: 0.9,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: `${data.filename} (ранжировано по доле)` } },
+                    scales: {
+                        x: { title: { display: true, text: 'Ранг' } },
+                        y: { title: { display: true, text: 'Доля, %' }, beginAtZero: true }
+                    }
+                }
+            });
+        });
+    }
+
+    function generateRoutesStatsForData(allRoutesData, uniquePairsData, counterData, totalPacketsData) {
+        const uniqueCount = uniquePairsData.length;
+        const hopStats = new Map();
+        for (const pairs of uniquePairsData) {
+            const h = pairs.length;
+            const c = counterData.get(JSON.stringify(pairs));
+            if (!hopStats.has(h)) hopStats.set(h, { unique: 0, packets: 0 });
+            const st = hopStats.get(h);
+            st.unique += 1;
+            st.packets += c;
+        }
+        const sortedHops = Array.from(hopStats.entries()).sort((a,b) => a[0]-b[0]);
+        let out = '';
+        out += `Всего пакетов: ${totalPacketsData}\n`;
+        out += `Уникальных маршрутов: ${uniqueCount}\n\n`;
+        out += 'Распределение по хопам:\n';
+        out += 'Хопов   | Уникальных | Пакетов\n';
+        out += '-'.repeat(35) + '\n';
+        for (const [h, st] of sortedHops) out += `${h.toString().padEnd(8)} | ${st.unique.toString().padEnd(10)} | ${st.packets}\n`;
+        const weightedAvg = uniquePairsData.reduce((sum, p) => sum + p.length * counterData.get(JSON.stringify(p)), 0) / totalPacketsData;
+        const simpleAvg = uniquePairsData.reduce((sum, p) => sum + p.length, 0) / uniqueCount;
+        out += `\nСреднее хопов (взвешенное): ${weightedAvg.toFixed(2)}\n`;
+        out += `Среднее хопов (по уникальным): ${simpleAvg.toFixed(2)}\n`;
+        return out;
+    }
+
+    // ======================================================================
+    // 7. ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ + УПРАВЛЕНИЕ ЗАГЛУШКАМИ
+    // ======================================================================
+    function updatePlaceholders() {
+        const hasData = (lqiData.length > 0 || routeData.length > 0);
+        const lqiTab = document.getElementById('tab-lqi');
+        const routesTab = document.getElementById('tab-routes');
+        const graphTab = document.getElementById('tab-graph');
+        const statsTab = document.getElementById('tab-stats');
+
+        if (lqiTab) lqiTab.classList.toggle('no-data', !hasData);
+        if (routesTab) routesTab.classList.toggle('no-data', !hasData);
+        if (graphTab) graphTab.classList.toggle('no-data', !hasData);
+        if (statsTab) statsTab.classList.toggle('no-data', !hasData);
+    }
+
+    function displayResults(filename) {
+        if (routeData.length) rebuildRouteStats();
+
+        updatePlaceholders();
+
+        if (lqiData.length) {
+            runLqiAnalysis();
+        } else {
+            const report = document.getElementById('lqiReport');
+            if (report) {
+                report.style.display = 'none';
+                report.innerHTML = '<span style="color:#d98c8c;">Нет данных LQI в этом файле.</span>';
+            }
+            const status = document.getElementById('lqiGraphStatus');
+            if (status) status.innerText = 'Нет данных LQI';
+        }
+
+        renderStats();
+
+        if (routeData.length) {
+            const routesStats = document.getElementById('routesStats');
+            if (routesStats) {
+                routesStats.style.display = 'block';
+                routesStats.textContent = generateRoutesStats();
+            }
+
+            currentPage = 0;
+            currentFilter = '';
+            const filterInput = document.getElementById('tableFilter');
+            if (filterInput) filterInput.value = '';
+            renderRoutesTables();
+
+            const tablesContainer = document.getElementById('tablesContainer');
+            if (tablesContainer) tablesContainer.style.display = 'block';
+            const chartArea = document.getElementById('chartArea');
+            if (chartArea) chartArea.style.display = 'block';
+            const chartControls = document.getElementById('chartControls');
+            if (chartControls) chartControls.style.display = 'flex';
+
+            const barWidth = parseFloat(document.getElementById('barWidthSlider').value);
+            const sortDesc = document.getElementById('sortDescCheck').checked;
+            const useRank = document.getElementById('useRankCheck').checked;
+            renderRoutesChart(barWidth, sortDesc, useRank);
+
+            document.querySelectorAll('#tablesContainer .tab-buttons button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('#tablesContainer .tab-buttons button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    document.querySelectorAll('#tablesContainer .tab-content').forEach(el => el.classList.remove('active'));
+                    document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+                });
+            });
+            const wrapper = document.getElementById('tablesWrapper');
+            const toggleBtn = document.getElementById('toggleTablesBtn');
+            if (wrapper) wrapper.classList.remove('collapsed');
+            if (toggleBtn) {
+                toggleBtn.classList.remove('collapsed');
+                toggleBtn.textContent = 'Свернуть';
+            }
+
+            const timeControls = document.querySelector('#tab-graph .graph-time-controls');
+            if (timeControls) timeControls.style.display = timelineData.length ? 'flex' : 'none';
+        } else {
+            const routesStats = document.getElementById('routesStats');
+            if (routesStats) routesStats.style.display = 'none';
+            const tablesContainer = document.getElementById('tablesContainer');
+            if (tablesContainer) tablesContainer.style.display = 'none';
+            const chartArea = document.getElementById('chartArea');
+            if (chartArea) chartArea.style.display = 'none';
+            const chartControls = document.getElementById('chartControls');
+            if (chartControls) chartControls.style.display = 'none';
+        }
+
+        if (routeData.length) {
+            loadGraphPositions();
+            const range = getTimelineMinMax();
+            if (range) {
+                const timeFromSlider = document.getElementById('timeFromSlider');
+                if (timeFromSlider) timeFromSlider.value = 0;
+                const timeToSlider = document.getElementById('timeToSlider');
+                if (timeToSlider) timeToSlider.value = 100;
+                const timeFromLabel = document.getElementById('timeFromLabel');
+                if (timeFromLabel) timeFromLabel.textContent = formatFullDateTime(range.min);
+                const timeToLabel = document.getElementById('timeToLabel');
+                if (timeToLabel) timeToLabel.textContent = formatFullDateTime(range.max);
+                const timeInfo = document.getElementById('timeInfo');
+                if (timeInfo) timeInfo.textContent = `От ${formatFullDateTime(range.min)} до ${formatFullDateTime(range.max)}`;
+                const timeControls = document.getElementById('timeControls');
+                if (timeControls) timeControls.style.display = 'flex';
+            } else {
+                const timeControls = document.getElementById('timeControls');
+                if (timeControls) timeControls.style.display = 'none';
+            }
+            if (graphNetwork) {
+                updateGraphFromUI();
+            } else {
+                const minWeight = parseInt(document.getElementById('minWeightSlider').value, 10);
+                graphPhysicsEnabled = document.getElementById('physicsToggle').checked;
+                buildGraphWithFilter(minWeight, graphPhysicsEnabled,
+                    range ? range.min : undefined,
+                    range ? range.max : undefined);
+            }
+        } else {
+            if (graphNetwork) { graphNetwork.destroy(); graphNetwork = null; }
+        }
+
+        const fileStatus = document.getElementById('fileStatus');
+        if (fileStatus) fileStatus.textContent = `✅ Загружено: "${filename}" (LQI: ${lqiData.length}, маршрутов: ${routeData.length})`;
+    }
+
+    // ======================================================================
+    // 8. СТАТИСТИКА (исключён FFFFFFFFFFFFFFFF + фильтр)
+    // ======================================================================
+    let _statsEuiMap = new Map();
+
+    function generateStatsReport() {
+        if (!routeData.length && !lqiData.length) {
+            return '<p>Нет данных для статистики.</p>';
+        }
+
+        const euiMap = new Map();
+        for (const { pairs } of routeData) {
+            for (const p of pairs) {
+                const euiStr = formatEUI(p.eui);
+                if (euiStr === 'FFFFFFFFFFFFFFFF') continue;
+                const shortStr = formatShort(p.short);
+                if (!euiMap.has(euiStr)) {
+                    euiMap.set(euiStr, new Set());
+                }
+                euiMap.get(euiStr).add(shortStr);
+            }
+        }
+
+        const shortSet = new Set();
+        for (const shortStrs of euiMap.values()) {
+            for (const s of shortStrs) {
+                shortSet.add(s);
+            }
+        }
+        for (const d of lqiData) {
+            shortSet.add(d.src);
+            shortSet.add(d.dst);
+        }
+
+        const uniqueEuiCount = euiMap.size;
+        const uniqueShortCount = shortSet.size;
+
+        let report = `<h3>📊 Общая статистика узлов</h3>
+<strong>Уникальных EUI (из маршрутов, без FFFFFFFFFFFFFFFF):</strong> ${uniqueEuiCount}
+<strong>Уникальных коротких адресов (из маршрутов и LQI):</strong> ${uniqueShortCount}
+<strong>Всего записей LQI:</strong> ${lqiData.length}
+<strong>Всего записей маршрутов:</strong> ${routeData.length}
+<hr>`;
+        return report;
+    }
+
+    function renderStats() {
+        const statsDiv = document.getElementById('statsReport');
+        const tableBody = document.getElementById('euiTableBody');
+
+        const euiMap = new Map();
+        for (const { pairs } of routeData) {
+            for (const p of pairs) {
+                const euiStr = formatEUI(p.eui);
+                if (euiStr === 'FFFFFFFFFFFFFFFF') continue;
+                const shortStr = formatShort(p.short);
+                if (!euiMap.has(euiStr)) {
+                    euiMap.set(euiStr, new Set());
+                }
+                euiMap.get(euiStr).add(shortStr);
+            }
+        }
+
+        _statsEuiMap = euiMap;
+        applyStatsFilter();
+    }
+
+    function applyStatsFilter() {
+        const filterText = document.getElementById('statsTableFilter').value.trim().toUpperCase();
+        const tableBody = document.getElementById('euiTableBody');
+        const countSpan = document.getElementById('statsFilterCount');
+
+        let filteredEntries = [];
+        if (!filterText) {
+            filteredEntries = Array.from(_statsEuiMap.entries()).sort((a,b) => a[0].localeCompare(b[0]));
+        } else {
+            for (const [eui, shortSet] of _statsEuiMap.entries()) {
+                const euiUpper = eui.toUpperCase();
+                const shortList = Array.from(shortSet);
+                const shortUpper = shortList.map(s => s.toUpperCase());
+                if (euiUpper.includes(filterText) || shortUpper.some(s => s.includes(filterText))) {
+                    filteredEntries.push([eui, shortSet]);
+                }
+            }
+            filteredEntries.sort((a,b) => a[0].localeCompare(b[0]));
+        }
+
+        let tableRows = '';
+        if (filteredEntries.length > 0) {
+            for (const [eui, shortSet] of filteredEntries) {
+                const shortList = Array.from(shortSet).sort();
+                const shortHtml = shortList.map(s => `<span>${s}</span>`).join('');
+                tableRows += `<tr><td>${eui}</td><td><div class="addr-list">${shortHtml}</div></td></tr>`;
+            }
+        } else {
+            tableRows = '<tr><td colspan="2">Нет данных, соответствующих фильтру</td></tr>';
+        }
+        tableBody.innerHTML = tableRows;
+        countSpan.textContent = `(${filteredEntries.length} записей)`;
+
+        const reportHtml = generateStatsReport();
+        document.getElementById('statsReport').innerHTML = reportHtml;
+        document.getElementById('statsReport').style.display = 'block';
+    }
+
+    // ======================================================================
+    // 9. ВСПОМОГАТЕЛЬНЫЕ
+    // ======================================================================
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function initTheme() {
+        const saved = localStorage.getItem('darkTheme');
+        if (saved === 'false') {
+            document.body.classList.remove('dark');
+            document.getElementById('darkThemeToggle').checked = false;
+        } else {
+            document.body.classList.add('dark');
+            document.getElementById('darkThemeToggle').checked = true;
+            if (saved === null) localStorage.setItem('darkTheme', 'true');
+        }
+    }
+    function toggleTheme() {
+        const isDark = document.body.classList.toggle('dark');
+        localStorage.setItem('darkTheme', isDark);
+    }
+    document.getElementById('darkThemeToggle').addEventListener('change', toggleTheme);
+
+    function restoreChartSettings() {
+        const saved = localStorage.getItem('chartSettings');
+        if (saved) {
+            try {
+                const { barWidth, sortDesc, useRank } = JSON.parse(saved);
+                document.getElementById('barWidthSlider').value = barWidth;
+                document.getElementById('barWidthValue').textContent = barWidth.toFixed(2);
+                document.getElementById('sortDescCheck').checked = sortDesc;
+                document.getElementById('useRankCheck').checked = useRank;
+                if (uniquePairs.length) renderRoutesChart(barWidth, sortDesc, useRank);
+            } catch {}
+        }
+    }
+
+    // ======================================================================
+    // 10. ОБРАБОТЧИКИ ВКЛАДОК И КНОПОК
+    // ======================================================================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            const tabId = this.dataset.tab;
+            if (tabId) {
+                const tab = document.getElementById('tab-' + tabId);
+                if (tab) tab.classList.add('active');
+                if (tabId === 'graph' && graphNetwork) {
+                    setTimeout(() => {
+                        if (graphNetwork) {
+                            graphNetwork.redraw();
+                            graphNetwork.fit();
+                        }
+                    }, 50);
+                }
+            }
+        });
+    });
+
+    document.getElementById('analyzeBtn').addEventListener('click', function() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput) return;
+        const files = fileInput.files;
+        if (!files.length) { alert('Выберите хотя бы один файл!'); return; }
+        const loading = document.getElementById('loadingIndicator');
+        if (loading) loading.style.display = 'block';
+
+        processText('', false);
+
+        let processed = 0;
+        const total = files.length;
+
+        function processNext(index) {
+            if (index >= total) {
+                if (loading) loading.style.display = 'none';
+                if (lqiData.length === 0 && routeData.length === 0) {
+                    showToast('Ни один файл не содержит корректных пакетов.');
+                    return;
+                }
+                displayResults('Объединённые данные (' + total + ' файлов)');
+                showToast(`Обработано ${total} файлов. LQI: ${lqiData.length}, маршрутов: ${routeData.length}`);
+                return;
+            }
+            const file = files[index];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const result = processText(text, true);
+                if (result.lqiAdded || result.routesAdded) {
+                    addHistoryEntry(file.name, text, result.routesAdded || 0, result.lqiAdded || 0);
+                } else {
+                    showToast(`Файл "${file.name}" не содержит корректных пакетов.`);
+                }
+                processed++;
+                setTimeout(() => processNext(index + 1), 50);
+            };
+            reader.onerror = function() {
+                showToast(`Ошибка чтения файла "${file.name}"`);
+                processed++;
+                setTimeout(() => processNext(index + 1), 50);
+            };
+            reader.readAsText(file);
+        }
+        processNext(0);
+    });
+
+    document.getElementById('lqiApplyBtn').addEventListener('click', runLqiAnalysis);
+    document.getElementById('lqiFindRouteBtn').addEventListener('click', onLqiFindRoute);
+    document.getElementById('lqiResetRouteBtn').addEventListener('click', onLqiResetRoute);
+    document.getElementById('lqiPhysicsToggle').addEventListener('click', toggleLqiPhysics);
+
+    document.getElementById('prevPageBtn').addEventListener('click', function() {
+        if (currentPage > 0) { currentPage--; renderRoutesTables(); }
+    });
+    document.getElementById('nextPageBtn').addEventListener('click', function() {
+        const filteredAll = getFilteredAllRoutes();
+        const totalPages = Math.ceil(filteredAll.length / ROWS_PER_PAGE);
+        if (currentPage < totalPages - 1) { currentPage++; renderRoutesTables(); }
+    });
+    document.getElementById('tableFilter').addEventListener('input', function() {
+        currentFilter = this.value;
+        currentPage = 0;
+        renderRoutesTables();
+    });
+    document.getElementById('updateChartBtn').addEventListener('click', function() {
+        const barWidth = parseFloat(document.getElementById('barWidthSlider').value);
+        const sortDesc = document.getElementById('sortDescCheck').checked;
+        const useRank = document.getElementById('useRankCheck').checked;
+        renderRoutesChart(barWidth, sortDesc, useRank);
+        document.getElementById('barWidthValue').textContent = barWidth.toFixed(2);
+    });
+    document.getElementById('barWidthSlider').addEventListener('input', function() {
+        document.getElementById('barWidthValue').textContent = parseFloat(this.value).toFixed(2);
+    });
+    document.getElementById('toggleTablesBtn').addEventListener('click', function() {
+        const wrapper = document.getElementById('tablesWrapper');
+        if (!wrapper) return;
+        const isCollapsed = wrapper.classList.toggle('collapsed');
+        this.classList.toggle('collapsed');
+        this.textContent = isCollapsed ? 'Развернуть' : 'Свернуть';
+    });
+
+    document.getElementById('toggleEuiTableBtn').addEventListener('click', function() {
+        const wrapper = document.getElementById('euiTableWrapper');
+        if (!wrapper) return;
+        const isHidden = wrapper.classList.toggle('hidden');
+        this.textContent = isHidden ? '▶ Показать таблицу соответствия EUI ↔ Short' : '▼ Скрыть таблицу соответствия EUI ↔ Short';
+        if (!isHidden) {
+            const filter = document.getElementById('statsTableFilter');
+            if (filter) filter.value = '';
+            applyStatsFilter();
+        }
+    });
+
+    document.getElementById('statsTableFilter').addEventListener('input', function() {
+        applyStatsFilter();
+    });
+
+    document.getElementById('clearHistoryBtn').addEventListener('click', function() {
+        if (confirm('Очистить всю историю загрузок?')) clearHistory();
+    });
+    document.getElementById('compareBtn').addEventListener('click', compareTwoEntries);
+
+    document.getElementById('modalCloseBtn').addEventListener('click', function() { document.getElementById('compareModal').classList.remove('active'); });
+    document.getElementById('modalCloseActionBtn').addEventListener('click', function() { document.getElementById('compareModal').classList.remove('active'); });
+    document.getElementById('compareModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
+
+    document.getElementById('timelineBtn').addEventListener('click', function() {
+        if (!timelineData.length && !otherTimelineData.length) { showToast('Нет данных с временными метками.'); return; }
+        document.getElementById('timelineModal').classList.add('active');
+        const interval = parseInt(document.getElementById('timelineInterval').value, 10);
+        const uniqueOnly = document.getElementById('timelineUniqueOnly').checked;
+        const showOther = document.getElementById('timelineShowOther').checked;
+        const showTotal = document.getElementById('timelineShowTotal').checked;
+        buildTimelineChart(interval, uniqueOnly, showOther, showTotal);
+    });
+    document.getElementById('timelineModalCloseBtn').addEventListener('click', function() { document.getElementById('timelineModal').classList.remove('active'); });
+    document.getElementById('timelineCloseBtn').addEventListener('click', function() { document.getElementById('timelineModal').classList.remove('active'); });
+    document.getElementById('timelineModal').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
+    document.getElementById('timelineUpdateBtn').addEventListener('click', function() {
+        const interval = parseInt(document.getElementById('timelineInterval').value, 10);
+        const uniqueOnly = document.getElementById('timelineUniqueOnly').checked;
+        const showOther = document.getElementById('timelineShowOther').checked;
+        const showTotal = document.getElementById('timelineShowTotal').checked;
+        buildTimelineChart(interval, uniqueOnly, showOther, showTotal);
+    });
+    document.querySelectorAll('#timelineUniqueOnly, #timelineShowOther, #timelineShowTotal').forEach(el => {
+        el.addEventListener('change', function() { document.getElementById('timelineUpdateBtn').click(); });
+    });
+    document.getElementById('timelineInterval').addEventListener('change', function() { document.getElementById('timelineUpdateBtn').click(); });
+
+    const graphUpdateBtn = document.getElementById('graphUpdateBtn');
+if (graphUpdateBtn) {
+    graphUpdateBtn.addEventListener('click', updateGraphFromUI);
+} else console.warn('⚠️ Элемент #graphUpdateBtn не найден');
+
+const minWeightSlider = document.getElementById('minWeightSlider');
+if (minWeightSlider) {
+    minWeightSlider.addEventListener('input', function() {
+        const valLabel = document.getElementById('minWeightValue');
+        if (valLabel) valLabel.textContent = this.value;
+        updateGraphFromUI();
+    });
+} else console.warn('⚠️ Элемент #minWeightSlider не найден');
+
+const physicsToggle = document.getElementById('physicsToggle');
+if (physicsToggle) {
+    physicsToggle.addEventListener('change', toggleGraphPhysics);
+} else console.warn('⚠️ Элемент #physicsToggle не найден');
+
+const timeFromSlider = document.getElementById('timeFromSlider');
+const timeToSlider = document.getElementById('timeToSlider');
+if (timeFromSlider && timeToSlider) {
+    timeFromSlider.addEventListener('input', function() {
+        const from = parseFloat(this.value);
+        const to = parseFloat(timeToSlider.value);
+        if (from > to) this.value = to;
+        updateGraphFromUI();
+    });
+    timeToSlider.addEventListener('input', function() {
+        const from = parseFloat(timeFromSlider.value);
+        const to = parseFloat(this.value);
+        if (to < from) this.value = from;
+        updateGraphFromUI();
+    });
+} else console.warn('⚠️ Один из ползунков времени не найден');
+
+const playBtn = document.getElementById('playBtn');
+if (playBtn) {
+    playBtn.addEventListener('click', togglePlay);
+} else console.warn('⚠️ Элемент #playBtn не найден');
+
+const resetTimeBtn = document.getElementById('resetTimeBtn');
+if (resetTimeBtn) {
+    resetTimeBtn.addEventListener('click', function() {
+        if (timeFromSlider) timeFromSlider.value = 0;
+        if (timeToSlider) timeToSlider.value = 100;
+        updateGraphFromUI();
+    });
+} else console.warn('⚠️ Элемент #resetTimeBtn не найден');
+
+    // Полноэкранный режим для графов
+    function toggleFullscreen(wrapperId) {
+        const wrapper = document.getElementById(wrapperId);
+        if (!wrapper) return;
+        wrapper.classList.toggle('fullscreen');
+        if (wrapperId === 'lqiGraphWrapper' && lqiNetwork) {
+            setTimeout(() => lqiNetwork.redraw(), 50);
+        } else if (wrapperId === 'graphGraphWrapper' && graphNetwork) {
+            setTimeout(() => {
+                graphNetwork.redraw();
+                graphNetwork.fit();
+            }, 50);
+        }
+    }
+
+    const lqiFullscreenBtn = document.getElementById('lqiFullscreenBtn');
+    if (lqiFullscreenBtn) {
+        lqiFullscreenBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleFullscreen('lqiGraphWrapper');
+        });
+    }
+
+    const graphFullscreenBtn = document.getElementById('graphFullscreenBtn');
+    if (graphFullscreenBtn) {
+        graphFullscreenBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleFullscreen('graphGraphWrapper');
+        });
+    }
+
+    // Закрываем полноэкранный режим по Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const lqiWrapper = document.getElementById('lqiGraphWrapper');
+            if (lqiWrapper && lqiWrapper.classList.contains('fullscreen')) {
+                lqiWrapper.classList.remove('fullscreen');
+                if (lqiNetwork) setTimeout(() => lqiNetwork.redraw(), 50);
+            }
+            const graphWrapper = document.getElementById('graphGraphWrapper');
+            if (graphWrapper && graphWrapper.classList.contains('fullscreen')) {
+                graphWrapper.classList.remove('fullscreen');
+                if (graphNetwork) setTimeout(() => { graphNetwork.redraw(); graphNetwork.fit(); }, 50);
+            }
+        }
+    });
+
+
+	// ======================================================================
+    // 11. ЭКСПОРТ
+    // ======================================================================
+
+	//---Обработчик кнопки---
+
+document.getElementById('exportReportBtn').addEventListener('click', async function() {
+    if (!routeData.length && !lqiData.length) {
+        showToast('Нет данных для отчёта.');
+        return;
+    }
+    try {
+        const reportHtml = await generateReportHtml();   // <-- ждём результат
+        downloadFile(reportHtml, 'отчёт_zigbee.html', 'text/html');
+        showToast('Отчёт сгенерирован и скачан.');
+    } catch (e) {
+        console.error('Ошибка при создании отчёта:', e);
+        showToast('Ошибка: ' + e.message);
+    }
+});
+
+
+function buildAllRoutesTableHtml(routes) {
+    if (!routes || !routes.length) return '<p>Нет маршрутов.</p>';
+    let html = `<table><thead><tr><th>RouteID</th><th>Hop</th><th>EUI</th><th>ShortAddress</th><th>NextHop</th></tr></thead><tbody>`;
+    for (const { routeId, pairs } of routes) {
+        const entries = buildRouteEntries(pairs, routeId);
+        for (const e of entries) {
+            html += `<tr><td>${e.RouteID}</td><td>${e.Hop}</td><td>${e.EUI}</td><td>${e.ShortAddress}</td><td>${e.NextHop}</td></tr>`;
+        }
+    }
+    html += '</tbody></table>';
+    return html;
+}
+
+function downloadFile(content, fileName, mimeType) {
+    const blob = new Blob([content], { type: mimeType + ';charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+}
+
+
+	async function captureLqiGraph() {
+		if (!lqiNetwork) {
+			console.warn('LQI-граф не инициализирован');
+			return '';
+		}
+		const container = document.getElementById('lqiNetwork');
+		if (!container) {
+			console.warn('Контейнер #lqiNetwork не найден');
+			return '';
+		}
+
+		// Сохраняем текущие размеры и настройки физики
+		const origWidth = container.offsetWidth || 600;
+		const origHeight = container.offsetHeight || 400;
+		const origStyleWidth = container.style.width;
+		const origStyleHeight = container.style.height;
+		const physicsEnabled = lqiPhysicsEnabled; // текущее состояние
+
+		// Временно отключаем физику и подгоняем граф
+		lqiNetwork.setOptions({ physics: { enabled: false } });
+		// Подгоняем под текущий размер контейнера (чтобы все узлы были видны)
+		lqiNetwork.fit();
+
+		// Задаём целевое разрешение (можно увеличить для печати)
+		const targetWidth = 1920;
+		const targetHeight = 1080;
+
+		// Меняем размер контейнера
+		container.style.width = targetWidth + 'px';
+		container.style.height = targetHeight + 'px';
+		lqiNetwork.setSize(targetWidth, targetHeight);
+
+		// Ждём перерисовки
+		await new Promise(resolve => requestAnimationFrame(resolve));
+
+		// Подгоняем граф под новый размер (теперь все узлы будут видны и не обрезаны)
+		lqiNetwork.fit();
+
+		// Даём ещё один кадр для завершения анимации масштабирования
+		await new Promise(resolve => requestAnimationFrame(resolve));
+
+		// Получаем canvas и изображение
+		const canvas = container.querySelector('canvas');
+		if (!canvas) {
+			console.warn('Canvas не найден внутри #lqiNetwork');
+			// Восстанавливаем исходные размеры и физику
+			container.style.width = origStyleWidth || origWidth + 'px';
+			container.style.height = origStyleHeight || origHeight + 'px';
+			lqiNetwork.setSize(origWidth, origHeight);
+			lqiNetwork.setOptions({ physics: { enabled: physicsEnabled } });
+			return '';
+		}
+
+		const dataUrl = canvas.toDataURL('image/png');
+
+		// Восстанавливаем исходные размеры и физику
+		container.style.width = origStyleWidth || origWidth + 'px';
+		container.style.height = origStyleHeight || origHeight + 'px';
+		lqiNetwork.setSize(origWidth, origHeight);
+		if (physicsEnabled) {
+			lqiNetwork.setOptions({ physics: { enabled: true } });
+		}
+		// Подгоняем обратно (опционально)
+		lqiNetwork.fit();
+
+		await new Promise(resolve => requestAnimationFrame(resolve));
+
+		return dataUrl;
+	}
+
+
+
+async function generateReportHtml() {
+    // --- 1. Получаем изображение графика популярности (как раньше) ---
+    const chartCanvas = document.getElementById('popularityChart');
+    let chartImage = '';
+    if (chartCanvas && routesChartInstance) {
+        const origWidth = chartCanvas.width;
+        const origHeight = chartCanvas.height;
+        const targetWidth = 1920;
+        const targetHeight = 960;
+        chartCanvas.width = targetWidth;
+        chartCanvas.height = targetHeight;
+        chartCanvas.style.width = targetWidth + 'px';
+        chartCanvas.style.height = targetHeight + 'px';
+        routesChartInstance.resize();
+        routesChartInstance.update();
+        chartImage = chartCanvas.toDataURL('image/png');
+        chartCanvas.width = origWidth;
+        chartCanvas.height = origHeight;
+        chartCanvas.style.width = '';
+        chartCanvas.style.height = '';
+        routesChartInstance.resize();
+        routesChartInstance.update();
+    }
+
+    // --- 2. Получаем изображение LQI-графа ---
+    let lqiGraphImage = await captureLqiGraph();
+
+    // --- 3. Генерируем текстовую статистику ---
+    const statsText = generateStatsReport();
+    const routeStatsText = generateRoutesStats();
+
+    let lqiReportHtml = '';
+    if (lqiData.length) {
+        const aggregatedEdges = cachedAggregatedEdges || buildAggregatedEdges(lqiData);
+        if (aggregatedEdges.length) {
+            const threshold = parseInt(document.getElementById('lqiThreshold')?.value || 150, 10);
+            const topN = parseInt(document.getElementById('lqiTopN')?.value || 10, 10);
+            const symmetry = document.getElementById('lqiSymmetry')?.checked || false;
+            const verbose = document.getElementById('lqiVerbose')?.checked || false;
+            lqiReportHtml = generateLqiReport(aggregatedEdges, {
+                topN, symmetry, verbose, adjThreshold: threshold, totalRawRecords: lqiData.length
+            });
+            lqiReportHtml = `<div class="lqi-report">${lqiReportHtml}</div>`;
+        }
+    }
+
+    let allRoutesTableHtml = '';
+    if (routeData.length) {
+        const filtered = routeData.slice(0, 50);
+        allRoutesTableHtml = buildAllRoutesTableHtml(filtered);
+    }
+
+    // --- 4. Возвращаем полный HTML-документ ---
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Отчёт ZigBee Анализатор</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; color: #DCDCDC; background: black; }
+        h1, h2, h3 { color: #DCDCDC; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+        th { background: #DCDCDC; color: white; padding: 6px 8px; text-align: left; }
+        td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) { background: black; }
+        .stat-box { background: black; padding: 15px; border-radius: 8px; margin: 15px 0; font-family: monospace; white-space: pre-wrap; font-size: 13px; }
+        .chart-container { width: 100%; margin: 20px 0; text-align: center; }
+        .chart-container img { width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; }
+        .lqi-graph-container { width: 100%; margin: 20px 0; text-align: center; }
+        .lqi-graph-container img { width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .footer { margin-top: 30px; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+        @media print {
+            body { margin: 0.5in; }
+            table { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <h1>📡 Отчёт ZigBee Анализатора</h1>
+    <p>Дата генерации: ${new Date().toLocaleString()}</p>
+    <p>Всего маршрутных записей: ${routeData.length}, LQI-записей: ${lqiData.length}</p>
+
+    <h2>📊 Общая статистика</h2>
+    <div class="stat-box">${statsText}</div>
+
+    <h2>🗺️ Статистика маршрутов</h2>
+    <div class="stat-box">${routeStatsText}</div>
+
+    <h2>📊 LQI-анализ</h2>
+    ${lqiReportHtml || '<p>Нет данных LQI.</p>'}
+
+    ${lqiGraphImage ? `<h2>🌐 LQI-граф связей</h2>
+    <div class="lqi-graph-container"><img src="${lqiGraphImage}" alt="LQI-граф"></div>` : ''}
+
+    ${chartImage ? `<h2>📈 График популярности маршрутов</h2>
+    <div class="chart-container"><img src="${chartImage}" alt="График популярности"></div>` : ''}
+
+    <h2>📋 Таблица всех маршрутов (первые 50)</h2>
+    ${allRoutesTableHtml || '<p>Нет данных маршрутов.</p>'}
+
+    <div class="footer">Отчёт создан в ZigBee Анализаторе. Данные не покидают ваш браузер.</div>
+</body>
+</html>`;
+}
+
+    // ======================================================================
+    // 12. ИНИЦИАЛИЗАЦИЯ
+    // ======================================================================
+    initTheme();
+    restoreChartSettings();
+    renderHistory();
+    loadGraphPositions();
+    updatePlaceholders();
+
+    const statsOutput = document.getElementById('statsOutput');
+    if (statsOutput) statsOutput.style.display = 'none';
+    const tablesContainer = document.getElementById('tablesContainer');
+    if (tablesContainer) tablesContainer.style.display = 'none';
+    const chartArea = document.getElementById('chartArea');
+    if (chartArea) chartArea.style.display = 'none';
+    const chartControls = document.getElementById('chartControls');
+    if (chartControls) chartControls.style.display = 'none';
+    const lqiReport = document.getElementById('lqiReport');
+    if (lqiReport) lqiReport.style.display = 'none';
+
+    console.log('ZigBee Анализатор загружен. Готов к работе.');
+});
+</script>
+</body>
+</html>
